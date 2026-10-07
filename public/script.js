@@ -17,9 +17,7 @@
   const heroError = $("#heroError");
   const modal = $("#intakeModal");
   const privacyModal = $("#privacyModal");
-  const prelaunch = $("#prelaunch");
 
-  if (config.mode !== "live") prelaunch.hidden = false;
   $("#year").textContent = new Date().getFullYear();
 
   // Mobile menu
