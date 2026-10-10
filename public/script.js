@@ -186,7 +186,7 @@
     const error = $("#contactError");
 
     if (!name || whatsapp.length < 10 || !location || !consent) {
-      error.textContent = "Completa nombre, WhatsApp, ubicación y aceptación del Aviso de Privacidad.";
+      error.textContent = "Completa nombre, WhatsApp, ubicación y la autorización de privacidad y contacto.";
       return;
     }
     error.textContent = "";
