@@ -17,6 +17,9 @@
   const heroError = $("#heroError");
   const modal = $("#intakeModal");
   const privacyModal = $("#privacyModal");
+  let submissionInFlight = false;
+  let pendingRequestId = null;
+  let pendingCreatedAt = null;
 
   $("#year").textContent = new Date().getFullYear();
 
@@ -114,6 +117,15 @@
   };
 
   function openModal(){
+    submissionInFlight = false;
+    pendingRequestId = null;
+    pendingCreatedAt = null;
+    const submitButton = $("#submitRequest");
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.innerHTML = 'Enviar solicitud <span>→</span>';
+    }
+
     state.situation = situation.value.trim();
     state.category = classify(state.situation);
     state.detail = "";
@@ -179,6 +191,9 @@
   }
 
   $("#submitRequest").addEventListener("click", async () => {
+    const submitButton = $("#submitRequest");
+    if (submissionInFlight) return;
+
     const name = $("#contactName").value.trim();
     const whatsapp = $("#contactWhatsapp").value.replace(/\D/g,"");
     const location = $("#contactLocation").value.trim();
@@ -191,10 +206,19 @@
     }
     error.textContent = "";
 
-    const id = requestId();
+    submissionInFlight = true;
+    submitButton.disabled = true;
+    submitButton.textContent = "Enviando solicitud…";
+
+    if (!pendingRequestId) {
+      pendingRequestId = requestId();
+      pendingCreatedAt = new Date().toISOString();
+    }
+
+    const id = pendingRequestId;
     const payload = {
       request_id:id,
-      created_at:new Date().toISOString(),
+      created_at:pendingCreatedAt,
       persona:state.persona,
       situation:state.situation,
       category:state.category,
@@ -225,7 +249,10 @@
         if (!res.ok) throw new Error("HTTP "+res.status);
         $("#successMessage").textContent = "Recibimos tu solicitud. Nos comunicaremos contigo por WhatsApp para continuar.";
       } catch(err) {
-        error.textContent = "No pudimos enviar la solicitud en este momento. Intenta nuevamente.";
+        submissionInFlight = false;
+        submitButton.disabled = false;
+        submitButton.innerHTML = 'Enviar solicitud <span>→</span>';
+        error.textContent = "No pudimos confirmar el envío en este momento. Intenta nuevamente; conservaremos el mismo folio para evitar duplicados.";
         return;
       }
     } else {
