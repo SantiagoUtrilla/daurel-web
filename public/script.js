@@ -229,6 +229,7 @@
       location,
       privacy_consent:consent,
       privacy_consent_at:new Date().toISOString(),
+      privacy_version:"2026-10-10-v1",
       source:"website",
       landing_page:window.location.href,
       referrer:document.referrer || "",
