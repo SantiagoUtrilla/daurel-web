@@ -73,7 +73,7 @@ textarea:focus,input:focus{border-color:#777;box-shadow:0 0 0 3px rgba(0,0,0,.05
 .button-dark{background:#0a0a0a;color:#fff}
 .button-light{background:#fff;color:#111}
 .button-wide{width:100%;margin-top:12px}
-.privacy-note{font-size:10px;color:#777;text-align:center;margin:13px 0 0}
+.privacy-note{font-size:10px;color:#777;text-align:center;margin:10px 0}
 .privacy-note a{text-decoration:underline}
 .turnstile-wrap{display:flex;justify-content:center;min-height:1px;margin:10px 0 2px}
 .field-error{font-size:12px;color:#a52121;min-height:18px;margin-top:6px}
@@ -165,7 +165,13 @@ textarea:focus,input:focus{border-color:#777;box-shadow:0 0 0 3px rgba(0,0,0,.05
 .field{display:block;margin:16px 0}
 .field span{display:block;font-size:12px;font-weight:700;margin-bottom:7px}
 .field input{width:100%;border:1px solid #ddd;border-radius:10px;padding:14px;outline:none}
-.consent{display:flex;gap:10px;align-items:flex-start;font-size:11px;color:#555;margin:18px 0}
+.location-autocomplete{position:relative}
+.location-suggestions{display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:40;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 14px 35px rgba(0,0,0,.12);overflow:hidden;max-height:250px;overflow-y:auto}
+.location-suggestions.open{display:block}
+.location-suggestion{display:block;width:100%;border:0;border-bottom:1px solid #eee;background:#fff;padding:12px 14px;text-align:left;font:inherit;font-size:12px;color:#222;cursor:pointer}
+.location-suggestion:last-child{border-bottom:0}
+.location-suggestion:hover,.location-suggestion:focus{background:#f4f4f1;outline:none}
+.consent{display:flex;gap:10px;align-items:flex-start;font-size:11px;color:#555;margin:14px 0 10px}
 .consent input{margin-top:2px}
 .consent button{padding:0;border:0;background:none;text-decoration:underline}
 .success-step{text-align:center}
@@ -223,3 +229,6 @@ textarea:focus,input:focus{border-color:#777;box-shadow:0 0 0 3px rgba(0,0,0,.05
   .modal-step h2,.privacy-panel h2{font-size:31px}
   .persona-toggle{grid-template-columns:1fr 1fr}
 }
+
+.privacy-note + .field-error{margin-top:0}
+#submitRequest{margin-top:8px}
