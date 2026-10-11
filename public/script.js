@@ -228,6 +228,217 @@
     ensureTurnstile();
   });
 
+
+  // Catálogo inicial de ubicaciones para la zona de operación actual de DAUREL:
+  // 16 Alcaldías de Ciudad de México + 125 Municipios del Estado de México.
+  // El campo sigue aceptando texto libre para ubicaciones fuera de este catálogo.
+  const locationCatalog = [
+    "Álvaro Obregón — Alcaldía, Ciudad de México",
+    "Azcapotzalco — Alcaldía, Ciudad de México",
+    "Benito Juárez — Alcaldía, Ciudad de México",
+    "Coyoacán — Alcaldía, Ciudad de México",
+    "Cuajimalpa de Morelos — Alcaldía, Ciudad de México",
+    "Cuauhtémoc — Alcaldía, Ciudad de México",
+    "Gustavo A. Madero — Alcaldía, Ciudad de México",
+    "Iztacalco — Alcaldía, Ciudad de México",
+    "Iztapalapa — Alcaldía, Ciudad de México",
+    "La Magdalena Contreras — Alcaldía, Ciudad de México",
+    "Miguel Hidalgo — Alcaldía, Ciudad de México",
+    "Milpa Alta — Alcaldía, Ciudad de México",
+    "Tláhuac — Alcaldía, Ciudad de México",
+    "Tlalpan — Alcaldía, Ciudad de México",
+    "Venustiano Carranza — Alcaldía, Ciudad de México",
+    "Xochimilco — Alcaldía, Ciudad de México",
+
+    "Acambay de Ruíz Castañeda — Municipio, Estado de México",
+    "Acolman — Municipio, Estado de México",
+    "Aculco — Municipio, Estado de México",
+    "Almoloya de Alquisiras — Municipio, Estado de México",
+    "Almoloya de Juárez — Municipio, Estado de México",
+    "Almoloya del Río — Municipio, Estado de México",
+    "Amanalco — Municipio, Estado de México",
+    "Amatepec — Municipio, Estado de México",
+    "Amecameca — Municipio, Estado de México",
+    "Apaxco — Municipio, Estado de México",
+    "Atenco — Municipio, Estado de México",
+    "Atizapán — Municipio, Estado de México",
+    "Atizapán de Zaragoza — Municipio, Estado de México",
+    "Atlacomulco — Municipio, Estado de México",
+    "Atlautla — Municipio, Estado de México",
+    "Axapusco — Municipio, Estado de México",
+    "Ayapango — Municipio, Estado de México",
+    "Calimaya — Municipio, Estado de México",
+    "Capulhuac — Municipio, Estado de México",
+    "Coacalco de Berriozábal — Municipio, Estado de México",
+    "Coatepec Harinas — Municipio, Estado de México",
+    "Cocotitlán — Municipio, Estado de México",
+    "Coyotepec — Municipio, Estado de México",
+    "Cuautitlán — Municipio, Estado de México",
+    "Chalco — Municipio, Estado de México",
+    "Chapa de Mota — Municipio, Estado de México",
+    "Chapultepec — Municipio, Estado de México",
+    "Chiautla — Municipio, Estado de México",
+    "Chicoloapan — Municipio, Estado de México",
+    "Chiconcuac — Municipio, Estado de México",
+    "Chimalhuacán — Municipio, Estado de México",
+    "Donato Guerra — Municipio, Estado de México",
+    "Ecatepec de Morelos — Municipio, Estado de México",
+    "Ecatzingo — Municipio, Estado de México",
+    "Huehuetoca — Municipio, Estado de México",
+    "Hueypoxtla — Municipio, Estado de México",
+    "Huixquilucan — Municipio, Estado de México",
+    "Isidro Fabela — Municipio, Estado de México",
+    "Ixtapaluca — Municipio, Estado de México",
+    "Ixtapan de la Sal — Municipio, Estado de México",
+    "Ixtapan del Oro — Municipio, Estado de México",
+    "Ixtlahuaca — Municipio, Estado de México",
+    "Xalatlaco — Municipio, Estado de México",
+    "Jaltenco — Municipio, Estado de México",
+    "Jilotepec — Municipio, Estado de México",
+    "Jilotzingo — Municipio, Estado de México",
+    "Jiquipilco — Municipio, Estado de México",
+    "Jocotitlán — Municipio, Estado de México",
+    "Joquicingo — Municipio, Estado de México",
+    "Juchitepec — Municipio, Estado de México",
+    "Lerma — Municipio, Estado de México",
+    "Malinalco — Municipio, Estado de México",
+    "Melchor Ocampo — Municipio, Estado de México",
+    "Metepec — Municipio, Estado de México",
+    "Mexicaltzingo — Municipio, Estado de México",
+    "Morelos — Municipio, Estado de México",
+    "Naucalpan de Juárez — Municipio, Estado de México",
+    "Nezahualcóyotl — Municipio, Estado de México",
+    "Nextlalpan — Municipio, Estado de México",
+    "Nicolás Romero — Municipio, Estado de México",
+    "Nopaltepec — Municipio, Estado de México",
+    "Ocoyoacac — Municipio, Estado de México",
+    "Ocuilan — Municipio, Estado de México",
+    "El Oro — Municipio, Estado de México",
+    "Otumba — Municipio, Estado de México",
+    "Otzoloapan — Municipio, Estado de México",
+    "Otzolotepec — Municipio, Estado de México",
+    "Ozumba — Municipio, Estado de México",
+    "Papalotla — Municipio, Estado de México",
+    "La Paz — Municipio, Estado de México",
+    "Polotitlán — Municipio, Estado de México",
+    "Rayón — Municipio, Estado de México",
+    "San Antonio la Isla — Municipio, Estado de México",
+    "San Felipe del Progreso — Municipio, Estado de México",
+    "San Martín de las Pirámides — Municipio, Estado de México",
+    "San Mateo Atenco — Municipio, Estado de México",
+    "San Simón de Guerrero — Municipio, Estado de México",
+    "Santo Tomás — Municipio, Estado de México",
+    "Soyaniquilpan de Juárez — Municipio, Estado de México",
+    "Sultepec — Municipio, Estado de México",
+    "Tecámac — Municipio, Estado de México",
+    "Tejupilco — Municipio, Estado de México",
+    "Temamatla — Municipio, Estado de México",
+    "Temascalapa — Municipio, Estado de México",
+    "Temascalcingo — Municipio, Estado de México",
+    "Temascaltepec — Municipio, Estado de México",
+    "Temoaya — Municipio, Estado de México",
+    "Tenancingo — Municipio, Estado de México",
+    "Tenango del Aire — Municipio, Estado de México",
+    "Tenango del Valle — Municipio, Estado de México",
+    "Teoloyucan — Municipio, Estado de México",
+    "Teotihuacán — Municipio, Estado de México",
+    "Tepetlaoxtoc — Municipio, Estado de México",
+    "Tepetlixpa — Municipio, Estado de México",
+    "Tepotzotlán — Municipio, Estado de México",
+    "Tequixquiac — Municipio, Estado de México",
+    "Texcaltitlán — Municipio, Estado de México",
+    "Texcalyacac — Municipio, Estado de México",
+    "Texcoco — Municipio, Estado de México",
+    "Tezoyuca — Municipio, Estado de México",
+    "Tianguistenco — Municipio, Estado de México",
+    "Timilpan — Municipio, Estado de México",
+    "Tlalmanalco — Municipio, Estado de México",
+    "Tlalnepantla de Baz — Municipio, Estado de México",
+    "Tlatlaya — Municipio, Estado de México",
+    "Toluca — Municipio, Estado de México",
+    "Tonatico — Municipio, Estado de México",
+    "Tultepec — Municipio, Estado de México",
+    "Tultitlán — Municipio, Estado de México",
+    "Valle de Bravo — Municipio, Estado de México",
+    "Villa de Allende — Municipio, Estado de México",
+    "Villa del Carbón — Municipio, Estado de México",
+    "Villa Guerrero — Municipio, Estado de México",
+    "Villa Victoria — Municipio, Estado de México",
+    "Xonacatlán — Municipio, Estado de México",
+    "Zacazonapan — Municipio, Estado de México",
+    "Zacualpan — Municipio, Estado de México",
+    "Zinacantepec — Municipio, Estado de México",
+    "Zumpahuacán — Municipio, Estado de México",
+    "Zumpango — Municipio, Estado de México",
+    "Cuautitlán Izcalli — Municipio, Estado de México",
+    "Valle de Chalco Solidaridad — Municipio, Estado de México",
+    "Luvianos — Municipio, Estado de México",
+    "San José del Rincón — Municipio, Estado de México",
+    "Tonanitla — Municipio, Estado de México"
+  ];
+
+  const normalizeLocation = (value) => String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+  const locationInput = $("#contactLocation");
+  const locationSuggestions = $("#locationSuggestions");
+
+  function closeLocationSuggestions() {
+    if (!locationSuggestions || !locationInput) return;
+    locationSuggestions.classList.remove("open");
+    locationSuggestions.innerHTML = "";
+    locationInput.setAttribute("aria-expanded", "false");
+  }
+
+  function showLocationSuggestions() {
+    if (!locationSuggestions || !locationInput) return;
+
+    const query = normalizeLocation(locationInput.value);
+    if (!query) {
+      closeLocationSuggestions();
+      return;
+    }
+
+    const matches = locationCatalog
+      .filter(item => normalizeLocation(item).startsWith(query))
+      .slice(0, 8);
+
+    if (!matches.length) {
+      closeLocationSuggestions();
+      return;
+    }
+
+    locationSuggestions.innerHTML = matches
+      .map(item => '<button type="button" class="location-suggestion" role="option">' + item + '</button>')
+      .join("");
+
+    locationSuggestions.classList.add("open");
+    locationInput.setAttribute("aria-expanded", "true");
+
+    $(".location-suggestion", locationSuggestions).forEach(button => {
+      button.addEventListener("click", () => {
+        locationInput.value = button.textContent.trim();
+        closeLocationSuggestions();
+        locationInput.focus();
+      });
+    });
+  }
+
+  locationInput?.addEventListener("input", showLocationSuggestions);
+  locationInput?.addEventListener("focus", showLocationSuggestions);
+  locationInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeLocationSuggestions();
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".location-autocomplete")) {
+      closeLocationSuggestions();
+    }
+  });
+
   function requestId(){
     const d = new Date();
     const date = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
