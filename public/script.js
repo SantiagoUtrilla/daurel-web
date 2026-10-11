@@ -620,7 +620,10 @@
 
         if (!res.ok || data.ok === false) {
           const code = data.code || "";
-          if (code.startsWith("TURNSTILE")) resetTurnstile();
+          // Turnstile tokens are single-use. Even if the failure happens later
+          // (for example, when n8n rejects the request), the token may already
+          // have been consumed by Siteverify, so always request a fresh one.
+          resetTurnstile();
           throw new Error(code || ("HTTP "+res.status));
         }
 
