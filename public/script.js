@@ -20,6 +20,47 @@
   let submissionInFlight = false;
   let pendingRequestId = null;
   let pendingCreatedAt = null;
+  let turnstileWidgetId = null;
+  let turnstileToken = "";
+
+  function ensureTurnstile() {
+    if (!config.turnstileSiteKey || turnstileWidgetId !== null) return;
+    if (!window.turnstile || !$("#turnstileWidget")) {
+      setTimeout(ensureTurnstile, 150);
+      return;
+    }
+
+    turnstileWidgetId = window.turnstile.render("#turnstileWidget", {
+      sitekey: config.turnstileSiteKey,
+      theme: "light",
+      language: "es-MX",
+      appearance: "interaction-only",
+      execution: "render",
+      callback: (token) => {
+        turnstileToken = token || "";
+        const error = $("#contactError");
+        if (error && error.textContent.includes("verificación de seguridad")) {
+          error.textContent = "";
+        }
+      },
+      "expired-callback": () => {
+        turnstileToken = "";
+      },
+      "error-callback": () => {
+        turnstileToken = "";
+        return true;
+      }
+    });
+  }
+
+  function resetTurnstile() {
+    turnstileToken = "";
+    if (turnstileWidgetId !== null && window.turnstile) {
+      try {
+        window.turnstile.reset(turnstileWidgetId);
+      } catch (_) {}
+    }
+  }
 
   $("#year").textContent = new Date().getFullYear();
 
@@ -120,6 +161,7 @@
     submissionInFlight = false;
     pendingRequestId = null;
     pendingCreatedAt = null;
+    resetTurnstile();
     const submitButton = $("#submitRequest");
     if (submitButton) {
       submitButton.disabled = false;
@@ -181,7 +223,10 @@
     state.urgency = btn.dataset.urgency;
     $("#stepTwoNext").disabled = false;
   }));
-  $("#stepTwoNext").addEventListener("click", () => goStep(3));
+  $("#stepTwoNext").addEventListener("click", () => {
+    goStep(3);
+    ensureTurnstile();
+  });
 
   function requestId(){
     const d = new Date();
@@ -204,6 +249,13 @@
       error.textContent = "Completa nombre, WhatsApp, ubicación y la autorización de privacidad y contacto.";
       return;
     }
+
+    if (config.mode === "live" && !turnstileToken) {
+      ensureTurnstile();
+      error.textContent = "Espera un momento mientras completamos la verificación de seguridad.";
+      return;
+    }
+
     error.textContent = "";
 
     submissionInFlight = true;
@@ -230,6 +282,7 @@
       privacy_consent:consent,
       privacy_consent_at:new Date().toISOString(),
       privacy_version:"2026-10-10-v1",
+      turnstile_token:turnstileToken,
       source:"website",
       landing_page:window.location.href,
       referrer:document.referrer || "",
@@ -240,20 +293,31 @@
       utm_term:new URLSearchParams(window.location.search).get("utm_term") || ""
     };
 
-    if (config.mode === "live" && config.n8nWebhookUrl) {
+    if (config.mode === "live" && config.apiUrl) {
       try {
-        const res = await fetch(config.n8nWebhookUrl, {
+        const res = await fetch(config.apiUrl, {
           method:"POST",
           headers:{"Content-Type":"application/json"},
           body:JSON.stringify(payload)
         });
-        if (!res.ok) throw new Error("HTTP "+res.status);
-        $("#successMessage").textContent = "Recibimos tu solicitud. Nos comunicaremos contigo por WhatsApp para continuar.";
+
+        let data = {};
+        try { data = await res.json(); } catch (_) {}
+
+        if (!res.ok || data.ok === false) {
+          const code = data.code || "";
+          if (code.startsWith("TURNSTILE")) resetTurnstile();
+          throw new Error(code || ("HTTP "+res.status));
+        }
+
+        $("#successMessage").textContent = data.message || "Recibimos tu solicitud. Nos comunicaremos contigo por WhatsApp para continuar.";
       } catch(err) {
         submissionInFlight = false;
         submitButton.disabled = false;
         submitButton.innerHTML = 'Enviar solicitud <span>→</span>';
-        error.textContent = "No pudimos confirmar el envío en este momento. Intenta nuevamente; conservaremos el mismo folio para evitar duplicados.";
+        error.textContent = String(err.message || "").startsWith("TURNSTILE")
+          ? "La verificación de seguridad venció o no pudo completarse. Intenta enviar nuevamente."
+          : "No pudimos confirmar el envío en este momento. Intenta nuevamente; conservaremos el mismo folio para evitar duplicados.";
         return;
       }
     } else {
