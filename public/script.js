@@ -391,6 +391,8 @@
     "Tonanitla — Municipio, Estado de México"
   ];
 
+  const locationNames = locationCatalog.map(item => item.split(" — ")[0]);
+
   const normalizeLocation = (value) => String(value || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -399,12 +401,43 @@
 
   const locationInput = $("#contactLocation");
   const locationSuggestions = $("#locationSuggestions");
+  let locationMatches = [];
+  let locationActiveIndex = -1;
 
   function closeLocationSuggestions() {
     if (!locationSuggestions || !locationInput) return;
     locationSuggestions.classList.remove("open");
     locationSuggestions.innerHTML = "";
     locationInput.setAttribute("aria-expanded", "false");
+    locationInput.removeAttribute("aria-activedescendant");
+    locationMatches = [];
+    locationActiveIndex = -1;
+  }
+
+  function selectLocation(value) {
+    if (!locationInput) return;
+    locationInput.value = value;
+    closeLocationSuggestions();
+    locationInput.focus();
+  }
+
+  function updateLocationActiveOption() {
+    if (!locationSuggestions || !locationInput) return;
+    const options = $$(".location-suggestion", locationSuggestions);
+
+    options.forEach((option, index) => {
+      const active = index === locationActiveIndex;
+      option.classList.toggle("active", active);
+      option.setAttribute("aria-selected", String(active));
+      if (active) {
+        locationInput.setAttribute("aria-activedescendant", option.id);
+        option.scrollIntoView({ block: "nearest" });
+      }
+    });
+
+    if (locationActiveIndex < 0) {
+      locationInput.removeAttribute("aria-activedescendant");
+    }
   }
 
   function showLocationSuggestions() {
@@ -416,35 +449,76 @@
       return;
     }
 
-    const matches = locationCatalog
+    locationMatches = locationNames
       .filter(item => normalizeLocation(item).startsWith(query))
       .slice(0, 8);
 
-    if (!matches.length) {
+    locationActiveIndex = -1;
+
+    if (!locationMatches.length) {
       closeLocationSuggestions();
       return;
     }
 
-    locationSuggestions.innerHTML = matches
-      .map(item => '<button type="button" class="location-suggestion" role="option">' + item + '</button>')
+    locationSuggestions.innerHTML = locationMatches
+      .map((item, index) =>
+        '<button type="button" id="location-option-' + index + '" class="location-suggestion" role="option" aria-selected="false">' +
+        item +
+        '</button>'
+      )
       .join("");
 
     locationSuggestions.classList.add("open");
     locationInput.setAttribute("aria-expanded", "true");
 
-    $(".location-suggestion", locationSuggestions).forEach(button => {
+    $$(".location-suggestion", locationSuggestions).forEach((button, index) => {
+      button.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+      });
+
       button.addEventListener("click", () => {
-        locationInput.value = button.textContent.trim();
-        closeLocationSuggestions();
-        locationInput.focus();
+        selectLocation(locationMatches[index]);
       });
     });
   }
 
   locationInput?.addEventListener("input", showLocationSuggestions);
   locationInput?.addEventListener("focus", showLocationSuggestions);
+
   locationInput?.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeLocationSuggestions();
+    if (!locationSuggestions?.classList.contains("open")) {
+      if (event.key === "ArrowDown" && locationInput.value.trim()) {
+        showLocationSuggestions();
+      }
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      locationActiveIndex = Math.min(locationActiveIndex + 1, locationMatches.length - 1);
+      updateLocationActiveOption();
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      locationActiveIndex = locationActiveIndex <= 0
+        ? locationMatches.length - 1
+        : locationActiveIndex - 1;
+      updateLocationActiveOption();
+      return;
+    }
+
+    if (event.key === "Enter" && locationActiveIndex >= 0) {
+      event.preventDefault();
+      selectLocation(locationMatches[locationActiveIndex]);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeLocationSuggestions();
+    }
   });
 
   document.addEventListener("click", (event) => {
