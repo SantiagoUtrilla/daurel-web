@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Libre+Caslon+Display&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" defer></script>
 </head>
 <body>
   <header class="site-header" id="inicio">
@@ -340,6 +341,7 @@
 
         <p class="privacy-note"><strong>ENVIAR TU SOLICITUD NO GENERA NINGÚN COSTO.</strong></p>
 
+        <div id="turnstileWidget" class="turnstile-wrap" aria-label="Verificación de seguridad"></div>
         <div class="field-error" id="contactError" role="alert"></div>
         <button class="button button-dark button-wide" id="submitRequest">Enviar solicitud <span>→</span></button>
       </div>
