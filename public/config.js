@@ -1,11 +1,11 @@
 window.DAUREL_CONFIG = {
-  // MODO ACTUAL:
-  // "demo" = no se envía información a ningún servidor.
-  // "live" = se enviará al webhook de n8n indicado abajo.
   mode: "live",
 
-  // Se configurará en el siguiente paso.
-  n8nWebhookUrl: "https://api.daurel.com.mx/webhook/daurel-solicitud",
+  // Punto de entrada público de DAUREL. La automatización interna no se expone al navegador.
+  apiUrl: "https://daurel.com.mx/api/solicitud",
+
+  // Clave pública de Cloudflare Turnstile.
+  turnstileSiteKey: "0x4AAAAAAFTjMGcPDOFlVPTH",
 
   // Formato internacional, sin + ni espacios. Ejemplo México: 5215512345678
   whatsappNumber: ""
