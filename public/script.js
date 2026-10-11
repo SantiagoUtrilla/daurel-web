@@ -22,6 +22,7 @@
   let pendingCreatedAt = null;
   let turnstileWidgetId = null;
   let turnstileToken = "";
+  let turnstileSubmitPending = false;
 
   function ensureTurnstile() {
     if (!config.turnstileSiteKey || turnstileWidgetId !== null) return;
@@ -34,20 +35,31 @@
       sitekey: config.turnstileSiteKey,
       theme: "light",
       language: "es-MX",
-      appearance: "interaction-only",
-      execution: "render",
+      appearance: "execute",
+      execution: "execute",
       callback: (token) => {
         turnstileToken = token || "";
+        $("#turnstileWidget")?.classList.remove("active");
         const error = $("#contactError");
         if (error && error.textContent.includes("verificación de seguridad")) {
           error.textContent = "";
         }
+        if (turnstileSubmitPending && turnstileToken) {
+          turnstileSubmitPending = false;
+          $("#submitRequest")?.click();
+        }
       },
       "expired-callback": () => {
         turnstileToken = "";
+        turnstileSubmitPending = false;
+        $("#turnstileWidget")?.classList.remove("active");
       },
       "error-callback": () => {
         turnstileToken = "";
+        turnstileSubmitPending = false;
+        $("#turnstileWidget")?.classList.remove("active");
+        const error = $("#contactError");
+        if (error) error.textContent = "No pudimos completar la verificación de seguridad. Intenta nuevamente.";
         return true;
       }
     });
@@ -55,6 +67,8 @@
 
   function resetTurnstile() {
     turnstileToken = "";
+    turnstileSubmitPending = false;
+    $("#turnstileWidget")?.classList.remove("active");
     if (turnstileWidgetId !== null && window.turnstile) {
       try {
         window.turnstile.reset(turnstileWidgetId);
@@ -463,7 +477,22 @@
 
     if (config.mode === "live" && !turnstileToken) {
       ensureTurnstile();
-      error.textContent = "Espera un momento mientras completamos la verificación de seguridad.";
+
+      if (turnstileWidgetId !== null && window.turnstile) {
+        turnstileSubmitPending = true;
+        $("#turnstileWidget")?.classList.add("active");
+        error.textContent = "";
+        try {
+          window.turnstile.execute(turnstileWidgetId);
+        } catch (_) {
+          turnstileSubmitPending = false;
+          $("#turnstileWidget")?.classList.remove("active");
+          error.textContent = "No pudimos iniciar la verificación de seguridad. Intenta nuevamente.";
+        }
+      } else {
+        error.textContent = "Espera un momento mientras preparamos la verificación de seguridad.";
+      }
+
       return;
     }
 
