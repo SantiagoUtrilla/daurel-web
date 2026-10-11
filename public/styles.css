@@ -75,6 +75,7 @@ textarea:focus,input:focus{border-color:#777;box-shadow:0 0 0 3px rgba(0,0,0,.05
 .button-wide{width:100%;margin-top:12px}
 .privacy-note{font-size:10px;color:#777;text-align:center;margin:13px 0 0}
 .privacy-note a{text-decoration:underline}
+.turnstile-wrap{display:flex;justify-content:center;min-height:1px;margin:10px 0 2px}
 .field-error{font-size:12px;color:#a52121;min-height:18px;margin-top:6px}
 
 .section{padding:82px 0}
