@@ -1,5 +1,6 @@
 (() => {
   const config = window.DAUREL_CONFIG || {};
+
   const state = {
     persona: "particular",
     situation: "",
@@ -8,8 +9,16 @@
     urgency: ""
   };
 
-  const $ = (s, root=document) => root.querySelector(s);
-  const $$ = (s, root=document) => [...root.querySelectorAll(s)];
+  let turnstileWidgetId = null;
+  let turnstileToken = "";
+  let turnstileRendering = false;
+  let sendingRequest = false;
+
+  const $ = (selector, root = document) =>
+    root.querySelector(selector);
+
+  const $$ = (selector, root = document) =>
+    [...root.querySelectorAll(selector)];
 
   const situation = $("#situation");
   const heroForm = $("#heroForm");
@@ -17,234 +26,795 @@
   const heroError = $("#heroError");
   const modal = $("#intakeModal");
   const privacyModal = $("#privacyModal");
+  const contactError = $("#contactError");
+  const submitRequestButton = $("#submitRequest");
 
-  $("#year").textContent = new Date().getFullYear();
+  const yearElement = $("#year");
 
-  // Mobile menu
+  if (yearElement) {
+    yearElement.textContent = new Date().getFullYear();
+  }
+
+  // MENÚ MÓVIL
   const menuBtn = $("#menuButton");
   const mobileMenu = $("#mobileMenu");
+
   menuBtn?.addEventListener("click", () => {
     const open = mobileMenu.classList.toggle("open");
     menuBtn.setAttribute("aria-expanded", String(open));
   });
-  $$("#mobileMenu a").forEach(a => a.addEventListener("click", () => mobileMenu.classList.remove("open")));
 
-  // Persona selector
-  $$(".persona").forEach(btn => btn.addEventListener("click", () => {
-    $$(".persona").forEach(x => x.classList.remove("active"));
-    btn.classList.add("active");
-    state.persona = btn.dataset.persona;
-  }));
-
-  situation.addEventListener("input", () => {
-    charCount.textContent = situation.value.length;
-    heroError.textContent = "";
+  $$("#mobileMenu a").forEach((link) => {
+    link.addEventListener("click", () => {
+      mobileMenu.classList.remove("open");
+    });
   });
 
-  // Fill from issue cards
-  $$(".issue-card").forEach(card => card.addEventListener("click", () => {
-    const text = card.dataset.fill || "";
-    if (text) {
-      situation.value = text;
-      charCount.textContent = situation.value.length;
-    } else {
-      situation.value = "";
-      charCount.textContent = "0";
+  // PARTICULAR / EMPRESA
+  $$(".persona").forEach((button) => {
+    button.addEventListener("click", () => {
+      $$(".persona").forEach((item) => {
+        item.classList.remove("active");
+      });
+
+      button.classList.add("active");
+      state.persona = button.dataset.persona || "particular";
+    });
+  });
+
+  // DESCRIPCIÓN
+  situation?.addEventListener("input", () => {
+    if (charCount) {
+      charCount.textContent = String(situation.value.length);
     }
-    window.scrollTo({top:0, behavior:"smooth"});
-    setTimeout(() => situation.focus(), 550);
-  }));
 
-  $$(".js-start").forEach(btn => btn.addEventListener("click", () => {
-    window.scrollTo({top:0, behavior:"smooth"});
-    setTimeout(() => situation.focus(), 550);
-  }));
-  $$(".js-enterprise").forEach(btn => btn.addEventListener("click", () => {
-    state.persona = "empresa";
-    $$(".persona").forEach(x => x.classList.toggle("active", x.dataset.persona === "empresa"));
-    window.scrollTo({top:0, behavior:"smooth"});
-    setTimeout(() => situation.focus(), 550);
-  }));
+    if (heroError) {
+      heroError.textContent = "";
+    }
+  });
 
-  function classify(text){
-    const t = text.toLowerCase();
-    if (/(despid|renuncia|patr[oó]n|trabaj|n[oó]mina|liquidaci)/.test(t)) return "laboral";
-    if (/(choqu|accident|carro|veh[ií]culo|seguro|aseguradora|tr[aá]nsito)/.test(t)) return "accidente";
-    if (/(debe|deuda|pagar|pr[eé]stamo|cobrar)/.test(t)) return "deuda";
-    if (/(divor|pensi[oó]n|custodia|hijo|familiar|pareja)/.test(t)) return "familiar";
-    if (/(marca|nombre comercial|canci[oó]n|obra|autor|impi|indautor)/.test(t)) return "marca";
-    if (/(citatorio|audiencia|demanda|ministerio p[uú]blico|fiscal[ií]a)/.test(t)) return "citatorio";
-    if (/(contrato|cl[aá]usula|arrend|renta)/.test(t)) return "contrato";
+  // TARJETAS
+  $$(".issue-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const text = card.dataset.fill || "";
+
+      situation.value = text;
+
+      if (charCount) {
+        charCount.textContent = String(text.length);
+      }
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+
+      setTimeout(() => {
+        situation.focus();
+      }, 550);
+    });
+  });
+
+  // BOTONES EMPEZAR
+  $$(".js-start").forEach((button) => {
+    button.addEventListener("click", () => {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+
+      setTimeout(() => {
+        situation.focus();
+      }, 550);
+    });
+  });
+
+  // EMPRESAS
+  $$(".js-enterprise").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.persona = "empresa";
+
+      $$(".persona").forEach((item) => {
+        item.classList.toggle(
+          "active",
+          item.dataset.persona === "empresa"
+        );
+      });
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+
+      setTimeout(() => {
+        situation.focus();
+      }, 550);
+    });
+  });
+
+  // CLASIFICACIÓN
+  function classify(text) {
+    const value = String(text || "").toLowerCase();
+
+    if (/(despid|renuncia|patr[oó]n|trabaj|n[oó]mina|liquidaci)/.test(value)) {
+      return "laboral";
+    }
+
+    if (/(choqu|accident|carro|veh[ií]culo|seguro|aseguradora|tr[aá]nsito)/.test(value)) {
+      return "accidente";
+    }
+
+    if (/(debe|deuda|pagar|pr[eé]stamo|cobrar)/.test(value)) {
+      return "deuda";
+    }
+
+    if (/(divor|pensi[oó]n|custodia|hijo|familiar|pareja)/.test(value)) {
+      return "familiar";
+    }
+
+    if (/(marca|nombre comercial|canci[oó]n|obra|autor|impi|indautor)/.test(value)) {
+      return "marca";
+    }
+
+    if (/(citatorio|audiencia|demanda|ministerio p[uú]blico|fiscal[ií]a)/.test(value)) {
+      return "citatorio";
+    }
+
+    if (/(contrato|cl[aá]usula|arrend|renta)/.test(value)) {
+      return "contrato";
+    }
+
     return "general";
   }
 
   const questions = {
-    laboral:{
-      text:"¿Firmaste o te entregaron algún documento relacionado con tu salida?",
-      choices:["Sí, firmé algo","Me entregaron un documento","No","No estoy seguro"]
+    laboral: {
+      text: "¿Firmaste o te entregaron algún documento relacionado con tu salida?",
+      choices: [
+        "Sí, firmé algo",
+        "Me entregaron un documento",
+        "No",
+        "No estoy seguro"
+      ]
     },
-    accidente:{
-      text:"¿Intervino una aseguradora o alguna autoridad después del accidente?",
-      choices:["Aseguradora","Autoridad","Ambas","Ninguna"]
+
+    accidente: {
+      text: "¿Intervino una aseguradora o alguna autoridad después del accidente?",
+      choices: [
+        "Aseguradora",
+        "Autoridad",
+        "Ambas",
+        "Ninguna"
+      ]
     },
-    deuda:{
-      text:"¿Tienes mensajes, transferencias, contrato o algún comprobante relacionado con la deuda?",
-      choices:["Sí","No","Tengo algunos","No estoy seguro"]
+
+    deuda: {
+      text: "¿Tienes mensajes, transferencias, contrato o algún comprobante relacionado con la deuda?",
+      choices: [
+        "Sí",
+        "No",
+        "Tengo algunos",
+        "No estoy seguro"
+      ]
     },
-    familiar:{
-      text:"¿Hay menores de edad involucrados en la situación?",
-      choices:["Sí","No","No aplica","Prefiero explicarlo después"]
+
+    familiar: {
+      text: "¿Hay menores de edad involucrados en la situación?",
+      choices: [
+        "Sí",
+        "No",
+        "No aplica",
+        "Prefiero explicarlo después"
+      ]
     },
-    marca:{
-      text:"¿El nombre, marca o creación ya se está usando públicamente?",
-      choices:["Sí","No","Está por lanzarse","No estoy seguro"]
+
+    marca: {
+      text: "¿El nombre, marca o creación ya se está usando públicamente?",
+      choices: [
+        "Sí",
+        "No",
+        "Está por lanzarse",
+        "No estoy seguro"
+      ]
     },
-    citatorio:{
-      text:"¿Tienes el citatorio o documento que recibiste?",
-      choices:["Sí, lo tengo","Sólo tengo una foto","No","No estoy seguro"]
+
+    citatorio: {
+      text: "¿Tienes el citatorio o documento que recibiste?",
+      choices: [
+        "Sí, lo tengo",
+        "Sólo tengo una foto",
+        "No",
+        "No estoy seguro"
+      ]
     },
-    contrato:{
-      text:"¿Ya existe un documento que podamos revisar?",
-      choices:["Sí","Todavía no","Sólo tengo un borrador","No estoy seguro"]
+
+    contrato: {
+      text: "¿Ya existe un documento que podamos revisar?",
+      choices: [
+        "Sí",
+        "Todavía no",
+        "Sólo tengo un borrador",
+        "No estoy seguro"
+      ]
     },
-    general:{
-      text:"¿Existe algún documento, mensaje o comunicación relacionada con lo ocurrido?",
-      choices:["Sí","No","Tengo algunos","No estoy seguro"]
+
+    general: {
+      text: "¿Existe algún documento, mensaje o comunicación relacionada con lo ocurrido?",
+      choices: [
+        "Sí",
+        "No",
+        "Tengo algunos",
+        "No estoy seguro"
+      ]
     }
   };
 
-  function openModal(){
+  function openModal() {
     state.situation = situation.value.trim();
     state.category = classify(state.situation);
     state.detail = "";
     state.urgency = "";
 
-    const q = questions[state.category];
-    $("#dynamicQuestionText").textContent = q.text;
-    const wrap = $("#dynamicChoices");
-    wrap.innerHTML = q.choices.map(c => `<button type="button" class="choice">${c}</button>`).join("");
+    const question = questions[state.category] || questions.general;
 
-    $$(".choice", wrap).forEach(btn => btn.addEventListener("click", () => {
-      $$(".choice", wrap).forEach(x => x.classList.remove("selected"));
-      btn.classList.add("selected");
-      state.detail = btn.textContent.trim();
-      $("#stepOneNext").disabled = false;
-    }));
+    const questionText = $("#dynamicQuestionText");
+
+    if (questionText) {
+      questionText.textContent = question.text;
+    }
+
+    const choicesWrapper = $("#dynamicChoices");
+
+    if (choicesWrapper) {
+      choicesWrapper.innerHTML = question.choices
+        .map(
+          (choice) =>
+            `<button type="button" class="choice">${choice}</button>`
+        )
+        .join("");
+
+      $$(".choice", choicesWrapper).forEach((button) => {
+        button.addEventListener("click", () => {
+          $$(".choice", choicesWrapper).forEach((item) => {
+            item.classList.remove("selected");
+          });
+
+          button.classList.add("selected");
+          state.detail = button.textContent.trim();
+
+          const nextButton = $("#stepOneNext");
+
+          if (nextButton) {
+            nextButton.disabled = false;
+          }
+        });
+      });
+    }
+
+    const stepOneNext = $("#stepOneNext");
+
+    if (stepOneNext) {
+      stepOneNext.disabled = true;
+    }
+
+    const stepTwoNext = $("#stepTwoNext");
+
+    if (stepTwoNext) {
+      stepTwoNext.disabled = true;
+    }
+
+    $$(".choice[data-urgency]").forEach((item) => {
+      item.classList.remove("selected");
+    });
 
     goStep(1);
+
     modal.classList.add("open");
-    modal.setAttribute("aria-hidden","false");
+    modal.setAttribute("aria-hidden", "false");
     document.body.style.overflow = "hidden";
   }
 
-  function closeModal(){
+  function closeModal() {
     modal.classList.remove("open");
-    modal.setAttribute("aria-hidden","true");
+    modal.setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
+
+    resetTurnstile();
   }
 
-  function goStep(step){
-    $$(".modal-step", modal).forEach(x => x.classList.remove("active"));
+  function goStep(step) {
+    $$(".modal-step", modal).forEach((item) => {
+      item.classList.remove("active");
+    });
+
     $(`[data-step="${step}"]`, modal)?.classList.add("active");
+
     const progress = $$(".progress span", modal);
-    if (step === "success") progress.forEach(x => x.classList.remove("active"));
-    else progress.forEach((x,i) => x.classList.toggle("active", i <= Number(step)-1));
+
+    if (step === "success") {
+      progress.forEach((item) => {
+        item.classList.remove("active");
+      });
+    } else {
+      progress.forEach((item, index) => {
+        item.classList.toggle(
+          "active",
+          index <= Number(step) - 1
+        );
+      });
+    }
+
+    if (Number(step) === 3) {
+      setTimeout(() => {
+        ensureTurnstileRendered();
+      }, 100);
+    }
   }
 
-  heroForm.addEventListener("submit", e => {
-    e.preventDefault();
+  heroForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+
     if (situation.value.trim().length < 12) {
-      heroError.textContent = "Cuéntanos un poco más para poder continuar.";
+      heroError.textContent =
+        "Cuéntanos un poco más para poder continuar.";
+
       situation.focus();
+
       return;
     }
+
     openModal();
   });
 
-  $("#stepOneNext").addEventListener("click", () => goStep(2));
+  $("#stepOneNext")?.addEventListener("click", () => {
+    goStep(2);
+  });
 
-  $$('.choice[data-urgency]').forEach(btn => btn.addEventListener("click", () => {
-    $$('.choice[data-urgency]').forEach(x => x.classList.remove("selected"));
-    btn.classList.add("selected");
-    state.urgency = btn.dataset.urgency;
-    $("#stepTwoNext").disabled = false;
-  }));
-  $("#stepTwoNext").addEventListener("click", () => goStep(3));
+  $$(".choice[data-urgency]").forEach((button) => {
+    button.addEventListener("click", () => {
+      $$(".choice[data-urgency]").forEach((item) => {
+        item.classList.remove("selected");
+      });
 
-  function requestId(){
-    const d = new Date();
-    const date = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
-    const rand = Math.floor(1000 + Math.random()*9000);
-    return `DAU-${date}-${rand}`;
+      button.classList.add("selected");
+
+      state.urgency =
+        button.dataset.urgency || "unknown";
+
+      const nextButton = $("#stepTwoNext");
+
+      if (nextButton) {
+        nextButton.disabled = false;
+      }
+    });
+  });
+
+  $("#stepTwoNext")?.addEventListener("click", () => {
+    goStep(3);
+  });
+
+  // TURNSTILE
+  function waitForTurnstile(timeout = 10000) {
+    return new Promise((resolve, reject) => {
+      const started = Date.now();
+
+      const check = () => {
+        if (
+          window.turnstile &&
+          typeof window.turnstile.render === "function"
+        ) {
+          resolve(window.turnstile);
+          return;
+        }
+
+        if (Date.now() - started > timeout) {
+          reject(
+            new Error("Turnstile no pudo cargarse.")
+          );
+
+          return;
+        }
+
+        setTimeout(check, 100);
+      };
+
+      check();
+    });
   }
 
-  $("#submitRequest").addEventListener("click", async () => {
-    const name = $("#contactName").value.trim();
-    const whatsapp = $("#contactWhatsapp").value.replace(/\D/g,"");
-    const location = $("#contactLocation").value.trim();
-    const consent = $("#privacyConsent").checked;
-    const error = $("#contactError");
+  async function ensureTurnstileRendered() {
+    const container = $("#turnstileWidget");
 
-    if (!name || whatsapp.length < 10 || !location || !consent) {
-      error.textContent = "Completa nombre, WhatsApp, ubicación y aceptación del Aviso de Privacidad.";
-      return;
+    if (!container) {
+      if (contactError) {
+        contactError.textContent =
+          "No se encontró el módulo de seguridad del formulario.";
+      }
+
+      return false;
     }
-    error.textContent = "";
 
-    const id = requestId();
-    const payload = {
-      request_id:id,
-      created_at:new Date().toISOString(),
-      persona:state.persona,
-      situation:state.situation,
-      category:state.category,
-      key_answer:state.detail,
-      urgency:state.urgency,
-      name,
-      whatsapp,
-      location,
-      source:"website"
-    };
+    if (
+      !config.turnstileSiteKey ||
+      config.turnstileSiteKey.includes("PEGA_AQUI")
+    ) {
+      if (contactError) {
+        contactError.textContent =
+          "La verificación de seguridad todavía no está configurada.";
+      }
 
-    if (config.mode === "live" && config.n8nWebhookUrl) {
+      return false;
+    }
+
+    if (turnstileWidgetId !== null) {
+      return true;
+    }
+
+    if (turnstileRendering) {
+      return false;
+    }
+
+    turnstileRendering = true;
+
+    try {
+      const turnstile = await waitForTurnstile();
+
+      turnstileWidgetId = turnstile.render(
+        container,
+        {
+          sitekey: config.turnstileSiteKey,
+          theme: "auto",
+
+          callback(token) {
+            turnstileToken = token || "";
+
+            if (contactError) {
+              contactError.textContent = "";
+            }
+          },
+
+          "expired-callback"() {
+            turnstileToken = "";
+          },
+
+          "error-callback"() {
+            turnstileToken = "";
+
+            if (contactError) {
+              contactError.textContent =
+                "No se pudo completar la verificación de seguridad. Intenta nuevamente.";
+            }
+          }
+        }
+      );
+
+      return true;
+    } catch (error) {
+      console.error("Turnstile:", error);
+
+      if (contactError) {
+        contactError.textContent =
+          "No fue posible cargar la verificación de seguridad.";
+      }
+
+      return false;
+    } finally {
+      turnstileRendering = false;
+    }
+  }
+
+  function getTurnstileToken() {
+    if (turnstileToken) {
+      return turnstileToken;
+    }
+
+    if (
+      turnstileWidgetId !== null &&
+      window.turnstile
+    ) {
       try {
-        const res = await fetch(config.n8nWebhookUrl, {
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify(payload)
-        });
-        if (!res.ok) throw new Error("HTTP "+res.status);
-        $("#successMessage").textContent = "Recibimos tu solicitud. Nos comunicaremos contigo por WhatsApp para continuar.";
-      } catch(err) {
-        error.textContent = "No pudimos enviar la solicitud en este momento. Intenta nuevamente.";
+        return (
+          window.turnstile.getResponse(
+            turnstileWidgetId
+          ) || ""
+        );
+      } catch (error) {
+        console.error(
+          "Turnstile response:",
+          error
+        );
+      }
+    }
+
+    return "";
+  }
+
+  function resetTurnstile() {
+    turnstileToken = "";
+
+    if (
+      turnstileWidgetId !== null &&
+      window.turnstile
+    ) {
+      try {
+        window.turnstile.reset(
+          turnstileWidgetId
+        );
+      } catch (error) {
+        console.error(
+          "Turnstile reset:",
+          error
+        );
+      }
+    }
+  }
+
+  function getApiUrl(path) {
+    const base = String(
+      config.apiBaseUrl || ""
+    ).replace(/\/+$/, "");
+
+    return `${base}${path}`;
+  }
+
+  // ENVIAR SOLICITUD
+  submitRequestButton?.addEventListener(
+    "click",
+    async () => {
+      if (sendingRequest) {
         return;
       }
-    } else {
-      console.log("DAUREL DEMO PAYLOAD", payload);
-      $("#successMessage").textContent = "La interfaz ya está lista. Antes del lanzamiento conectaremos este formulario con n8n para que esta solicitud llegue a DAUREL y continúe por WhatsApp.";
+
+      const name =
+        $("#contactName").value.trim();
+
+      const whatsapp =
+        $("#contactWhatsapp")
+          .value
+          .replace(/\D/g, "");
+
+      const location =
+        $("#contactLocation").value.trim();
+
+      const consent =
+        $("#privacyConsent").checked;
+
+      if (name.length < 2) {
+        contactError.textContent =
+          "Escribe tu nombre.";
+
+        return;
+      }
+
+      if (
+        whatsapp.length < 10 ||
+        whatsapp.length > 15
+      ) {
+        contactError.textContent =
+          "Escribe un número de WhatsApp válido.";
+
+        return;
+      }
+
+      if (location.length < 2) {
+        contactError.textContent =
+          "Indica tu municipio o alcaldía.";
+
+        return;
+      }
+
+      if (!consent) {
+        contactError.textContent =
+          "Es necesario aceptar el Aviso de Privacidad para continuar.";
+
+        return;
+      }
+
+      if (!config.apiBaseUrl) {
+        contactError.textContent =
+          "El servicio de DAUREL todavía no está configurado.";
+
+        return;
+      }
+
+      await ensureTurnstileRendered();
+
+      const token =
+        getTurnstileToken();
+
+      if (!token) {
+        contactError.textContent =
+          "Completa la verificación de seguridad para continuar.";
+
+        return;
+      }
+
+      contactError.textContent = "";
+
+      const payload = {
+        persona: state.persona,
+        situation: state.situation,
+        key_answer: state.detail,
+        category_front: state.category,
+        category_internal: state.category,
+
+        urgency:
+          state.urgency || "unknown",
+
+        priority:
+          state.urgency === "48h"
+            ? "high"
+            : "normal",
+
+        name,
+        whatsapp,
+        location,
+
+        privacy_consent: true,
+
+        turnstile_token: token
+      };
+
+      sendingRequest = true;
+
+      const originalButtonText =
+        submitRequestButton.innerHTML;
+
+      submitRequestButton.disabled = true;
+      submitRequestButton.textContent = "Enviando...";
+
+      try {
+        const response = await fetch(
+          getApiUrl("/solicitudes"),
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify(payload)
+          }
+        );
+
+        let result = {};
+
+        try {
+          result = await response.json();
+        } catch {
+          result = {};
+        }
+
+        if (
+          !response.ok ||
+          !result.success
+        ) {
+          resetTurnstile();
+
+          throw new Error(
+            result.message ||
+              "No pudimos procesar la solicitud."
+          );
+        }
+
+        const requestIdElement =
+          $("#requestId");
+
+        if (requestIdElement) {
+          requestIdElement.textContent =
+            result.request_id;
+        }
+
+        const successMessage =
+          $("#successMessage");
+
+        if (successMessage) {
+          successMessage.textContent =
+            result.message ||
+            "Recibimos tu solicitud. Nos comunicaremos contigo por WhatsApp para continuar.";
+        }
+
+        const successKicker =
+          $(".success-step .kicker");
+
+        if (successKicker) {
+          successKicker.textContent =
+            "SOLICITUD RECIBIDA";
+        }
+
+        goStep("success");
+
+        resetTurnstile();
+      } catch (error) {
+        console.error(
+          "DAUREL API:",
+          error
+        );
+
+        contactError.textContent =
+          error.message ||
+          "No pudimos enviar la solicitud en este momento. Intenta nuevamente.";
+
+        resetTurnstile();
+      } finally {
+        sendingRequest = false;
+
+        submitRequestButton.disabled = false;
+        submitRequestButton.innerHTML =
+          originalButtonText;
+      }
     }
+  );
 
-    $("#requestId").textContent = id;
-    goStep("success");
-  });
+  // CERRAR MODAL
+  $$("[data-close-modal]").forEach(
+    (button) => {
+      button.addEventListener(
+        "click",
+        closeModal
+      );
+    }
+  );
 
-  $$("[data-close-modal]").forEach(x => x.addEventListener("click", closeModal));
-
-  // Privacy placeholder modal
-  function openPrivacy(){
+  // AVISO DE PRIVACIDAD
+  function openPrivacy() {
     privacyModal.classList.add("open");
-    privacyModal.setAttribute("aria-hidden","false");
-  }
-  function closePrivacy(){
-    privacyModal.classList.remove("open");
-    privacyModal.setAttribute("aria-hidden","true");
-  }
-  $("#privacyLink")?.addEventListener("click", e => {e.preventDefault(); openPrivacy();});
-  $("#openPrivacyInline")?.addEventListener("click", openPrivacy);
-  $$("#heroForm a[href='#privacidad']").forEach(a => a.addEventListener("click", e => {e.preventDefault(); openPrivacy();}));
-  $$("[data-close-privacy]").forEach(x => x.addEventListener("click", closePrivacy));
 
-  document.addEventListener("keydown", e => {
-    if(e.key === "Escape"){ closeModal(); closePrivacy(); }
-  });
+    privacyModal.setAttribute(
+      "aria-hidden",
+      "false"
+    );
+  }
+
+  function closePrivacy() {
+    privacyModal.classList.remove("open");
+
+    privacyModal.setAttribute(
+      "aria-hidden",
+      "true"
+    );
+  }
+
+  $("#privacyLink")?.addEventListener(
+    "click",
+    (event) => {
+      event.preventDefault();
+      openPrivacy();
+    }
+  );
+
+  $("#openPrivacyInline")?.addEventListener(
+    "click",
+    openPrivacy
+  );
+
+  $$("#heroForm a[href='#privacidad']")
+    .forEach((link) => {
+      link.addEventListener(
+        "click",
+        (event) => {
+          event.preventDefault();
+          openPrivacy();
+        }
+      );
+    });
+
+  $$("[data-close-privacy]").forEach(
+    (button) => {
+      button.addEventListener(
+        "click",
+        closePrivacy
+      );
+    }
+  );
+
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key === "Escape") {
+        closeModal();
+        closePrivacy();
+      }
+    }
+  );
 })();
