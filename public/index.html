@@ -330,7 +330,57 @@
         </label>
         <label class="field">
           <span>Municipio / alcaldía</span>
-          <input type="text" id="contactLocation" placeholder="Ej. Coyoacán">
+          <input
+  type="text"
+  id="contactLocation"
+  list="locationSuggestions"
+  autocomplete="off"
+  placeholder="Escribe tu municipio o alcaldía"
+>
+
+<datalist id="locationSuggestions">
+  <!-- Ciudad de México -->
+  <option value="Álvaro Obregón, Ciudad de México">
+  <option value="Azcapotzalco, Ciudad de México">
+  <option value="Benito Juárez, Ciudad de México">
+  <option value="Coyoacán, Ciudad de México">
+  <option value="Cuajimalpa de Morelos, Ciudad de México">
+  <option value="Cuauhtémoc, Ciudad de México">
+  <option value="Gustavo A. Madero, Ciudad de México">
+  <option value="Iztacalco, Ciudad de México">
+  <option value="Iztapalapa, Ciudad de México">
+  <option value="La Magdalena Contreras, Ciudad de México">
+  <option value="Miguel Hidalgo, Ciudad de México">
+  <option value="Milpa Alta, Ciudad de México">
+  <option value="Tláhuac, Ciudad de México">
+  <option value="Tlalpan, Ciudad de México">
+  <option value="Venustiano Carranza, Ciudad de México">
+  <option value="Xochimilco, Ciudad de México">
+
+  <!-- Estado de México -->
+  <option value="Atizapán de Zaragoza, Estado de México">
+  <option value="Capulhuac, Estado de México">
+  <option value="Chalco, Estado de México">
+  <option value="Chimalhuacán, Estado de México">
+  <option value="Coacalco de Berriozábal, Estado de México">
+  <option value="Cuautitlán, Estado de México">
+  <option value="Cuautitlán Izcalli, Estado de México">
+  <option value="Ecatepec de Morelos, Estado de México">
+  <option value="Huixquilucan, Estado de México">
+  <option value="Ixtapaluca, Estado de México">
+  <option value="Lerma, Estado de México">
+  <option value="Metepec, Estado de México">
+  <option value="Naucalpan de Juárez, Estado de México">
+  <option value="Nezahualcóyotl, Estado de México">
+  <option value="Nicolás Romero, Estado de México">
+  <option value="Ocoyoacac, Estado de México">
+  <option value="San Mateo Atenco, Estado de México">
+  <option value="Tlalnepantla de Baz, Estado de México">
+  <option value="Toluca, Estado de México">
+  <option value="Tultitlán, Estado de México">
+  <option value="Valle de Chalco Solidaridad, Estado de México">
+  <option value="Zinacantepec, Estado de México">
+</datalist>
         </label>
 
         <label class="consent">
