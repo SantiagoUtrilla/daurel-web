@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://daurel.com.mx/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://daurel.com.mx/aviso-privacidad.html</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://daurel.com.mx/terminos.html</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://daurel.com.mx/pagos-reembolsos.html</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://daurel.com.mx/comunicaciones.html</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://daurel.com.mx/contenido-informativo.html</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://daurel.com.mx/cookies.html</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+</urlset>
