@@ -51,16 +51,22 @@
           <h1>Solicitudes</h1>
           <p id="lastUpdated">Sin actualizar</p>
         </div>
-        <label>
-          <span>Filtrar estado</span>
-          <select id="statusFilter">
-            <option value="">Todos</option>
-            <option value="new">Nuevas</option>
-            <option value="contacted">Contactadas</option>
-            <option value="in_attention">En atención</option>
-            <option value="closed">Cerradas</option>
-          </select>
-        </label>
+        <div class="filters">
+          <label>
+            <span>Buscar</span>
+            <input id="searchInput" type="search" placeholder="Folio, nombre o categoría">
+          </label>
+          <label>
+            <span>Filtrar estado</span>
+            <select id="statusFilter">
+              <option value="">Todos</option>
+              <option value="new">Nuevas</option>
+              <option value="contacted">Contactadas</option>
+              <option value="in_attention">En atención</option>
+              <option value="closed">Cerradas</option>
+            </select>
+          </label>
+        </div>
       </section>
 
       <div class="notice hidden" id="panelMessage"></div>
@@ -83,6 +89,58 @@
           <tbody id="leadsBody"></tbody>
         </table>
       </section>
+
+      <div class="detail-modal hidden" id="detailModal" aria-hidden="true">
+        <div class="detail-backdrop" data-close-detail></div>
+        <section class="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+          <button class="detail-close" type="button" data-close-detail aria-label="Cerrar">×</button>
+          <p class="eyebrow">SOLICITUD</p>
+          <h2 id="detailTitle">Detalle del asunto</h2>
+          <div class="detail-grid" id="detailGrid"></div>
+
+          <div class="detail-block">
+            <h3>Situación</h3>
+            <p id="detailSituation">—</p>
+          </div>
+
+          <div class="detail-block">
+            <h3>Respuesta clave</h3>
+            <p id="detailKeyAnswer">—</p>
+          </div>
+
+          <div class="management-grid">
+            <label>
+              <span>Profesional asignado</span>
+              <input id="detailProfessional" type="text" placeholder="Sin asignar">
+            </label>
+
+            <label>
+              <span>Documentos</span>
+              <select id="detailDocuments">
+                <option value="pending">Pendientes</option>
+                <option value="requested">Solicitados</option>
+                <option value="partial">Parciales</option>
+                <option value="received">Recibidos</option>
+                <option value="not_required">No requeridos</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Prioridad</span>
+              <select id="detailPriority">
+                <option value="normal">Normal</option>
+                <option value="high">Alta</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="detail-actions">
+            <button class="secondary" type="button" data-close-detail>Cerrar</button>
+            <button class="save-btn" type="button" id="saveDetailBtn">Guardar cambios</button>
+          </div>
+          <p class="error" id="detailError"></p>
+        </section>
+      </div>
     </section>
   </main>
 
