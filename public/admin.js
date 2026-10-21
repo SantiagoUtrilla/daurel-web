@@ -77,7 +77,7 @@ async function loadLeads(){
     render();
     lastUpdated.textContent = "Actualizado: " + new Date().toLocaleString("es-MX");
   }catch(error){
-    leadsBody.innerHTML = '<tr><td colspan="9" class="empty">No fue posible cargar las solicitudes.</td></tr>';
+    leadsBody.innerHTML = '<tr><td colspan="10" class="empty">No fue posible cargar las solicitudes.</td></tr>';
     panelMessage.textContent = error.message;
     panelMessage.classList.remove("hidden");
   }
@@ -106,7 +106,7 @@ function render(){
   document.getElementById("statClosed").textContent = leads.filter(l=>l.status==="closed").length;
 
   if(!visible.length){
-    leadsBody.innerHTML = '<tr><td colspan="9" class="empty">No hay solicitudes para mostrar.</td></tr>';
+    leadsBody.innerHTML = '<tr><td colspan="10" class="empty">No hay solicitudes para mostrar.</td></tr>';
     return;
   }
 
@@ -129,6 +129,7 @@ function render(){
         <button class="action-btn primary" data-status="in_attention" data-id="${escapeAttr(lead.request_id)}">En atención</button>
         <button class="action-btn" data-status="closed" data-id="${escapeAttr(lead.request_id)}">Cerrada</button>
       </div></td>
+      <td class="priority-dot-cell"><span class="priority-dot ${getPriorityColor(lead)}"></span></td>
     </tr>`;
   }).join("");
 }
@@ -287,6 +288,31 @@ leadsBody.addEventListener("click", event => {
     changeStatus(statusButton.dataset.id, statusButton.dataset.status);
   }
 });
+
+function getPriorityColor(lead){
+  const priority = String(lead.priority || "").toLowerCase();
+  const urgency = String(lead.urgency || "").toLowerCase();
+
+  if(
+    priority === "high" ||
+    priority === "urgent" ||
+    priority === "alta" ||
+    urgency === "48h" ||
+    urgency === "urgent"
+  ){
+    return "red";
+  }
+
+  if(
+    priority === "medium" ||
+    priority === "media" ||
+    urgency === "soon"
+  ){
+    return "yellow";
+  }
+
+  return "green";
+}
 
 function formatDate(value){
   if(!value) return "—";
