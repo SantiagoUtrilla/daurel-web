@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DAUREL | Panel interno</title>
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <main class="admin-shell">
+    <section class="login-card" id="loginView">
+      <div class="brand">DAUREL</div>
+      <p class="eyebrow">PANEL INTERNO</p>
+      <h1>Acceso administrativo</h1>
+      <p>Ingresa la clave interna de DAUREL. La clave solo se conserva durante esta sesión del navegador.</p>
+      <form id="loginForm">
+        <label>
+          <span>Clave de acceso</span>
+          <input id="adminKey" type="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit">Entrar</button>
+        <p class="error" id="loginError"></p>
+      </form>
+    </section>
+
+    <section class="dashboard hidden" id="dashboardView">
+      <header class="topbar">
+        <div>
+          <div class="brand">DAUREL</div>
+          <p>Operaciones</p>
+        </div>
+        <div class="top-actions">
+          <button class="secondary" id="refreshBtn">Actualizar</button>
+          <button class="secondary" id="logoutBtn">Salir</button>
+        </div>
+      </header>
+
+      <section class="stats">
+        <article><span>Nuevas</span><strong id="statNew">0</strong></article>
+        <article><span>Contactadas</span><strong id="statContacted">0</strong></article>
+        <article><span>En atención</span><strong id="statAttention">0</strong></article>
+        <article><span>Cerradas</span><strong id="statClosed">0</strong></article>
+      </section>
+
+      <section class="toolbar">
+        <div>
+          <h1>Solicitudes</h1>
+          <p id="lastUpdated">Sin actualizar</p>
+        </div>
+        <label>
+          <span>Filtrar estado</span>
+          <select id="statusFilter">
+            <option value="">Todos</option>
+            <option value="new">Nuevas</option>
+            <option value="contacted">Contactadas</option>
+            <option value="in_attention">En atención</option>
+            <option value="closed">Cerradas</option>
+          </select>
+        </label>
+      </section>
+
+      <div class="notice hidden" id="panelMessage"></div>
+
+      <section class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Folio</th>
+              <th>Cliente</th>
+              <th>WhatsApp</th>
+              <th>Categoría</th>
+              <th>Urgencia</th>
+              <th>Ubicación</th>
+              <th>Estado</th>
+              <th>Fecha</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="leadsBody"></tbody>
+        </table>
+      </section>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>
