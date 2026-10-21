@@ -115,6 +115,7 @@ function render(){
     const date = formatDate(lead.created_at);
 
     return `<tr>
+      <td class="priority-dot-cell"><span class="priority-dot ${getPriorityColor(lead)}"></span></td>
       <td><button class="folio-btn" data-detail-id="${escapeAttr(lead.request_id)}">${escapeHtml(lead.request_id)}</button></td>
       <td>${escapeHtml(lead.name || "—")}</td>
       <td><a class="wa" href="${wa}" target="_blank" rel="noopener">+${escapeHtml(lead.whatsapp_e164 || "")}</a></td>
@@ -129,7 +130,6 @@ function render(){
         <button class="action-btn primary" data-status="in_attention" data-id="${escapeAttr(lead.request_id)}">En atención</button>
         <button class="action-btn" data-status="closed" data-id="${escapeAttr(lead.request_id)}">Cerrada</button>
       </div></td>
-      <td class="priority-dot-cell"><span class="priority-dot ${getPriorityColor(lead)}"></span></td>
     </tr>`;
   }).join("");
 }
