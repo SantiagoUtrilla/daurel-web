@@ -1,0 +1,18 @@
+{
+  // Configuración ÚNICAMENTE de pruebas. Nunca apuntar a daurel-db.
+  "name": "daurel-backend-staging",
+  "main": "./staging/worker.js",
+  "compatibility_date": "2026-10-24",
+  "workers_dev": true,
+  "vars": {
+    "ENVIRONMENT": "staging"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "daurel-staging",
+      "database_id": "9a10d215-203b-438c-afae-049b29a57e58",
+      "migrations_dir": "../migrations"
+    }
+  ]
+}
