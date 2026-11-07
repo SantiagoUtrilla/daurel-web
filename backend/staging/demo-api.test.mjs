@@ -6,6 +6,8 @@ import { readFileSync } from "node:fs";
 import {
   authorizeDemo, validateDemoPayload, createDemoRequest, listDemoClientRequests, getDemoAdminOverview,
 } from "./demo-api.js";
+import { getDemoDossier, recordDemoAction } from "./dossier-api.js";
+import worker from "./worker.js";
 
 const SECRET = "clave-sintetica-local-no-usar-en-cloudflare-12345";
 
@@ -142,4 +144,67 @@ test("Panel interno V2 muestra solo los clientes y asuntos sintéticos", async (
   assert.equal(after.statistics.total_requests, 3);
   assert.equal(after.statistics.total_clients, 2);
   assert.equal(after.requests.length, 3);
+});
+
+function actionRequest(clientKey, action, key) {
+  return new Request("https://staging.invalid/v2/demo/requests/ignored/events", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+    body: JSON.stringify({ client_key: clientKey, action }),
+  });
+}
+
+test("Expediente único de cliente, historia aislada por asunto", async () => {
+  const DB = new TestD1(), env = { DB };
+  const a = await (await createDemoRequest(request("demo-uno","laboral","evento-dossier-01"),env)).json();
+  const b = await (await createDemoRequest(request("demo-uno","civil","evento-dossier-02"),env)).json();
+  assert.notEqual(a.request_id, b.request_id);
+  const dossierResponse = await getDemoDossier(env, "demo-uno");
+  assert.equal(dossierResponse.status, 200);
+  const dossier = await dossierResponse.json();
+  assert.equal(dossier.count, 2);
+  assert.equal(dossier.client.kind, "person");
+  assert.equal(new Set(dossier.matters.map(m => m.request_id)).size, 2);
+  assert.ok(dossier.matters.every(m => m.events.length===1 && m.events[0].event_type==="request_created"));
+
+  const first = await recordDemoAction(actionRequest("demo-uno","review","dossier-note-001"),env,a.request_id);
+  assert.equal(first.status, 201);
+  assert.equal((await first.json()).replayed, false);
+  const repeat = await recordDemoAction(actionRequest("demo-uno","review","dossier-note-001"),env,a.request_id);
+  assert.equal(repeat.status, 200);
+  assert.equal((await repeat.json()).replayed, true);
+  const changedAction = await recordDemoAction(actionRequest("demo-uno","followup","dossier-note-001"),env,a.request_id);
+  assert.equal(changedAction.status, 409);
+  const secondAction = await recordDemoAction(actionRequest("demo-uno","information","dossier-note-002"),env,b.request_id);
+  assert.equal(secondAction.status, 201);
+
+  const after = await (await getDemoDossier(env,"demo-uno")).json();
+  assert.equal(after.count,2);
+  assert.equal(after.matters.find(m=>m.request_id===a.request_id).events.length,2);
+  assert.equal(after.matters.find(m=>m.request_id===b.request_id).events.length,2);
+  assert.equal(DB.sqlite.prepare("SELECT COUNT(*) AS n FROM request_events").get().n,4);
+  assert.equal(DB.sqlite.prepare("SELECT COUNT(*) AS n FROM parties").get().n,1);
+  assert.equal(DB.sqlite.prepare("SELECT COUNT(*) AS n FROM service_requests WHERE status='new'").get().n,2);
+});
+
+test("Protección: no permite acciones ajenas, identificadores falsos ni datos libres", async () => {
+  const DB = new TestD1(),env={DB};
+  const created=(await (await createDemoRequest(request("demo-uno","laboral","evento-dossier-03"),env)).json());
+  assert.equal((await recordDemoAction(actionRequest("demo-otro","review","dossier-note-003"),env,created.request_id)).status,404);
+  assert.equal((await recordDemoAction(actionRequest("demo-uno","review","dossier-note-004"),env,"not-a-uuid")).status,400);
+  const forbidden=new Request("https://staging.invalid/v2/demo/requests/ignored/events",{
+    method:"POST",headers:{"Content-Type":"application/json","Idempotency-Key":"dossier-note-005"},
+    body:JSON.stringify({client_key:"demo-uno",action:"followup",notes:"Datos personales"}),
+  });
+  assert.equal((await recordDemoAction(forbidden,env,created.request_id)).status,400);
+  assert.equal((await getDemoDossier(env,"nombre-real")).status,400);
+  assert.equal((await (await getDemoDossier(env,"demo-desconocido")).json()).count,0);
+  assert.equal(DB.sqlite.prepare("SELECT COUNT(*) AS n FROM request_events").get().n,1);
+
+  const base = "https://staging.invalid/v2/demo/dossiers/demo-uno";
+  const noAuth = await worker.fetch(new Request(base), { ...env, ENVIRONMENT:"staging", STAGING_TEST_TOKEN:SECRET });
+  assert.equal(noAuth.status,401);
+  const auth = await worker.fetch(new Request(base,{ headers:{Authorization:"Bearer "+SECRET}}),
+    { ...env, ENVIRONMENT:"staging", STAGING_TEST_TOKEN:SECRET });
+  assert.equal(auth.status,200);
 });
