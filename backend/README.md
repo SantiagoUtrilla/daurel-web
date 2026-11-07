@@ -1,6 +1,6 @@
 # DAUREL V2 — Worker de pruebas
 
-Este directorio es **exclusivamente de staging**.
+Este directorio es **exclusivamente de staging**. No recibe datos reales ni modifica producción.
 
 ## Primer despliegue automático
 
@@ -32,17 +32,16 @@ Esto es intencional y **no es una falla de despliegue**.
 
 ## Próximo hito
 
-Confirmar compilación exitosa en Cloudflare, consultar `/health`, y después diseñar/ensayar el esquema físico V2 en la base aislada.
+Confirmar la comprobación automática de 18 tablas en `/health`, y después implementar y probar la API V2 usando solamente datos ficticios.
 
-## Migración V2 núcleo: preparada, aún no aplicada
+## Migración V2 núcleo: ejecución manual realizada (7 de noviembre de 2026)
 
-El archivo `migrations/0001_v2_core.sql` define **18 tablas** con claves foráneas, índices, identificadores independientes y unicidad de eventos de entrada.
+El fundador ejecutó desde Cloudflare D1 Studio el archivo `migrations/0001_v2_core.sql` con la opción **Run all in sequence**. La captura final informa **Executed 29/29**, y las tablas nuevas aparecen en el navegador de Studio.
 
-- Se probó localmente con SQLite, `PRAGMA foreign_keys=ON`, creando una base temporal y verificando restricciones de duplicados, relaciones y solicitudes múltiples.
-- **Solo** se aplicará a `daurel-staging`, nunca a `daurel-db`.
-- El despliegue de GitHub **no aplica automáticamente el SQL**; la base sigue con 0 tablas hasta ejecutar la migración.
-- Preferencia para registrar la versión en D1: `npx wrangler d1 migrations apply daurel-staging --remote --config wrangler.staging.jsonc`, ejecutado desde la carpeta `backend`, tras la autenticación de Wrangler.
-- Alternativa visual: abrir Cloudflare D1 `daurel-staging` → **Console**, pegar el SQL completo y usar **Execute**; esa vía manual **no registra la migración en `d1_migrations`**, por lo que en el futuro habrá que reconciliar el historial con Wrangler antes de otras migraciones.
-- No es necesaria ninguna conexión con Telegram, backend de producción ni migración de clientes todavía.
+- **18 tablas y 11 índices previstos.** La captura confirma las 29 instrucciones ejecutadas; la nueva ruta `GET /health` verificará automáticamente la existencia de las 18 tablas esperadas y mostrará `schema.ready`.
+- La base correcta es `daurel-staging`. No modificar `daurel-db`, ni importar datos reales todavía.
+- **No volver a ejecutar manualmente el SQL.**
+- **Pendiente importante:** Studio no registra esta ejecución en la tabla de seguimiento `d1_migrations` de Wrangler. Antes de futuras migraciones, conciliar el historial con el comando oficial sobre **solo** `daurel-staging`. Como el SQL base usa `IF NOT EXISTS`, se podrá evaluar un primer `wrangler d1 migrations apply daurel-staging --remote --config wrangler.staging.jsonc` para registrar la versión; verificar antes que no haya deriva de esquema y que el comando apunte a la base correcta. No automatizar esta operación sin la revisión correspondiente.
+- Al consultar `/health`, el resultado esperado es `status: "online"`, `database: "connected"`, `schema.ready: true`, `schema.expected_tables: 18` y `schema.found_tables: 18`.
 
-Para comprobar el resultado en la consola D1: `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;`.
+Siguiente fase: API V2 en pruebas con autenticación estricta y datos ficticios; no exponer rutas de creación públicas antes de implementar controles y pruebas.
