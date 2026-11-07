@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import {
-  authorizeDemo, validateDemoPayload, createDemoRequest, listDemoClientRequests,
+  authorizeDemo, validateDemoPayload, createDemoRequest, listDemoClientRequests, getDemoAdminOverview,
 } from "./demo-api.js";
 
 const SECRET = "clave-sintetica-local-no-usar-en-cloudflare-12345";
@@ -114,4 +114,32 @@ test("Cliente diferente no fusionado y entrada inválida sin escritura", async (
   });
   assert.equal((await createDemoRequest(wrong, env)).status,400);
   assert.equal(DB.sqlite.prepare("SELECT COUNT(*) AS total FROM parties").get().total, 2);
+});
+
+test("Panel interno V2 muestra solo los clientes y asuntos sintéticos", async () => {
+  const DB = new TestD1();
+  const env = { DB };
+  await createDemoRequest(request("demo-uno", "laboral", "evento-demo-2001"), env);
+  await createDemoRequest(request("demo-uno", "civil", "evento-demo-2002"), env);
+  await createDemoRequest(request("demo-dos", "marcas", "evento-demo-2003"), env);
+  const response = await getDemoAdminOverview(env);
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.read_only, true);
+  assert.equal(data.environment, "staging");
+  assert.equal(data.statistics.total_clients, 2);
+  assert.equal(data.statistics.total_requests, 3);
+  assert.equal(data.statistics.new_requests, 3);
+  assert.equal(data.statistics.active_requests, 0);
+  assert.equal(data.requests.length, 3);
+  assert.ok(data.requests.every((row) => row.client_key.startsWith("demo-")));
+
+  DB.sqlite.prepare("INSERT INTO parties(party_id,kind) VALUES (?, 'person')")
+    .run("external-not-demo");
+  DB.sqlite.prepare("INSERT INTO service_requests(request_id,public_folio,requester_party_id,summary,intake_channel) VALUES (?,?,?,?,?)")
+    .run("test-non-demo", "DAU-NON-DEMO", "external-not-demo", "No debe aparecer", "web");
+  const after = await (await getDemoAdminOverview(env)).json();
+  assert.equal(after.statistics.total_requests, 3);
+  assert.equal(after.statistics.total_clients, 2);
+  assert.equal(after.requests.length, 3);
 });
