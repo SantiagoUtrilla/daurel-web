@@ -1,0 +1,22 @@
+name: DAUREL V2 Staging Tests
+on:
+  push:
+    branches:
+      - architecture/daurel-v2
+    paths:
+      - "backend/staging/**"
+      - "backend/migrations/**"
+      - ".github/workflows/staging-tests.yml"
+  workflow_dispatch:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Test D1 staging API with in-memory SQLite
+        run: node --test backend/staging/demo-api.test.mjs
