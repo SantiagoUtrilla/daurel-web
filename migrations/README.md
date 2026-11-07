@@ -1,10 +1,7 @@
-# Migraciones DAUREL V2
+# Nota sobre migraciones
 
-Esta carpeta contendrá los archivos SQL versionados de DAUREL V2. **Aún no hay migraciones**: no se ha ejecutado ninguna en D1.
+La carpeta oficial de migraciones V2 es **[`backend/migrations/`](../backend/migrations/)**. Esta carpeta raíz se conserva solo como referencia del diseño inicial.
 
-- La base de pruebas es `daurel-staging`, creada el 24 de octubre de 2026.
-- No tocar `daurel-db` ni eliminar la tabla legacy `leads`.
-- El esquema físico se diseñará desde el modelo lógico en `docs/DAUREL_V2_MODELO_LOGICO.md` y se probará en staging.
-- Para utilizar Wrangler, la configuración es `backend/wrangler.staging.jsonc`; corroborar **database_name y database_id** antes de cualquier comando `--remote`.
-- Nunca aplicar migraciones remotas sin revisar el SQL, validar datos de prueba y confirmar un plan de reversión.
-- El directorio de migraciones es `../migrations` relativo al archivo de configuración de Wrangler.
+La configuración activa `backend/wrangler.staging.jsonc` contiene ahora `"migrations_dir": "migrations"`, que resuelve a `backend/migrations` cuando Cloudflare utiliza `/backend/` como directorio raíz.
+
+**No colocar nuevos scripts SQL en esta carpeta raíz.** Nunca ejecutar SQL de staging contra `daurel-db` (producción).
