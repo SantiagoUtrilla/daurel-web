@@ -186,3 +186,45 @@ export async function listDemoClientRequests(clientKey, env) {
   const requests = found.results || [];
   return json({ success: true, client_key: clientKey, party_id: party.party_id, requests, count: requests.length });
 }
+
+
+// Vista administrativa V2, solo lectura y datos sintéticos.
+// La autorización se comprueba en worker.js ANTES de invocar esta función.
+export async function getDemoAdminOverview(env) {
+  const stats = await env.DB.prepare([
+    "SELECT COUNT(*) AS total_requests,",
+    "COUNT(DISTINCT requester_party_id) AS total_clients,",
+    "COALESCE(SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END), 0) AS new_requests,",
+    "COALESCE(SUM(CASE WHEN status = 'contacted' THEN 1 ELSE 0 END), 0) AS contacted_requests,",
+    "COALESCE(SUM(CASE WHEN status = 'in_attention' THEN 1 ELSE 0 END), 0) AS active_requests,",
+    "COALESCE(SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END), 0) AS closed_requests",
+    "FROM service_requests WHERE intake_channel = 'staging_demo'",
+  ].join(" ")).first();
+
+  const result = await env.DB.prepare([
+    "SELECT sr.request_id, sr.public_folio, sr.summary, sr.status, sr.opened_at,",
+    "ei.provider_user_id AS client_key",
+    "FROM service_requests sr",
+    "JOIN external_identities ei ON ei.party_id = sr.requester_party_id",
+    "AND ei.channel_account_id = ?",
+    "WHERE sr.intake_channel = 'staging_demo'",
+    "ORDER BY sr.opened_at DESC, sr.request_id DESC",
+    "LIMIT 100",
+  ].join(" ")).bind(DEMO_CHANNEL).all();
+
+  return json({
+    success: true,
+    environment: "staging",
+    read_only: true,
+    statistics: {
+      total_clients: Number(stats?.total_clients ?? 0),
+      total_requests: Number(stats?.total_requests ?? 0),
+      new_requests: Number(stats?.new_requests ?? 0),
+      contacted_requests: Number(stats?.contacted_requests ?? 0),
+      active_requests: Number(stats?.active_requests ?? 0),
+      closed_requests: Number(stats?.closed_requests ?? 0),
+    },
+    requests: result.results || [],
+    limit: 100,
+  });
+}
