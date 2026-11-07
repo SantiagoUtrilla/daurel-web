@@ -1,5 +1,7 @@
 import { demoPageResponse } from "./demo-page.js";
 import { adminPageResponse } from "./admin-page.js";
+import { dossierPageResponse } from "./dossier-page.js";
+import { getDemoDossier, recordDemoAction } from "./dossier-api.js";
 // DAUREL V2 - Worker de staging. Solo pruebas, nunca tráfico de clientes.
 import {
   authorizeDemo, createDemoRequest, listDemoClientRequests, getDemoAdminOverview, json,
@@ -59,13 +61,23 @@ export default {
       return adminPageResponse();
     }
 
+    if (request.method === "GET" && url.pathname === "/v2/demo/dossier") {
+      return dossierPageResponse();
+    }
+
+    const dossierMatch = request.method === "GET"
+      ? /^\/v2\/demo\/dossiers\/(demo-[a-z0-9_-]{1,32})$/.exec(url.pathname)
+      : null;
+    const actionMatch = request.method === "POST"
+      ? /^\/v2\/demo\/requests\/([0-9a-f-]{36})\/events$/i.exec(url.pathname)
+      : null;
     const isAdminOverview = request.method === "GET" && url.pathname === "/v2/demo/admin/data";
     const isDemoCreate = request.method === "POST" && url.pathname === "/v2/demo/requests";
     const clientMatch = request.method === "GET"
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -78,6 +90,8 @@ export default {
     }
 
     try {
+      if (dossierMatch) return await getDemoDossier(env, dossierMatch[1]);
+      if (actionMatch) return await recordDemoAction(request, env, actionMatch[1]);
       if (isDemoCreate) return await createDemoRequest(request, env);
       if (isAdminOverview) return await getDemoAdminOverview(env);
       return await listDemoClientRequests(decodeURIComponent(clientMatch[1]), env);
