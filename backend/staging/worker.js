@@ -1,7 +1,8 @@
 import { demoPageResponse } from "./demo-page.js";
+import { adminPageResponse } from "./admin-page.js";
 // DAUREL V2 - Worker de staging. Solo pruebas, nunca tráfico de clientes.
 import {
-  authorizeDemo, createDemoRequest, listDemoClientRequests, json,
+  authorizeDemo, createDemoRequest, listDemoClientRequests, getDemoAdminOverview, json,
 } from "./demo-api.js";
 
 const REQUIRED_TABLES = [
@@ -54,12 +55,17 @@ export default {
       return demoPageResponse();
     }
 
+    if (request.method === "GET" && url.pathname === "/v2/demo/admin") {
+      return adminPageResponse();
+    }
+
+    const isAdminOverview = request.method === "GET" && url.pathname === "/v2/demo/admin/data";
     const isDemoCreate = request.method === "POST" && url.pathname === "/v2/demo/requests";
     const clientMatch = request.method === "GET"
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -73,6 +79,7 @@ export default {
 
     try {
       if (isDemoCreate) return await createDemoRequest(request, env);
+      if (isAdminOverview) return await getDemoAdminOverview(env);
       return await listDemoClientRequests(decodeURIComponent(clientMatch[1]), env);
     } catch {
       console.error("DAUREL staging demo API error");
