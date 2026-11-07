@@ -1,3 +1,4 @@
+import { demoPageResponse } from "./demo-page.js";
 // DAUREL V2 - Worker de staging. Solo pruebas, nunca tráfico de clientes.
 import {
   authorizeDemo, createDemoRequest, listDemoClientRequests, json,
@@ -47,6 +48,10 @@ export default {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/health") {
       return health(env);
+    }
+
+    if (request.method === "GET" && url.pathname === "/v2/demo") {
+      return demoPageResponse();
     }
 
     const isDemoCreate = request.method === "POST" && url.pathname === "/v2/demo/requests";
