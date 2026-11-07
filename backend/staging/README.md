@@ -68,3 +68,30 @@ URL: `https://daurel-backend-staging.lmsantiagoutrilla.workers.dev/v2/demo/admin
 ### Comprobación manual de la primera versión
 
 Después de confirmar que el nuevo despliegue esté en **Ready**, entrar al panel, pegar la clave técnica y pulsar **Cargar panel**. Deben mostrarse al menos los dos asuntos ficticios `demo-cliente1` (laboral y civil) creados en el laboratorio. No hay que ejecutar SQL ni actualizar los Secrets.
+
+## 7. Expediente único por cliente — nueva funcionalidad V2
+
+El expediente de prueba se abre en:
+`https://daurel-backend-staging.lmsantiagoutrilla.workers.dev/v2/demo/dossier`
+
+También existe un enlace **Ver expediente** en cada fila del Panel Administrativo V2:
+`/v2/demo/admin`. Preselecciona el cliente ficticio mediante un parámetro de URL, sin incluir el Secret.
+
+**Flujo manual (sin terminal ni SQL):**
+1. Abrir un expediente, introducir el `STAGING_TEST_TOKEN` de staging ya configurado.
+2. El cliente ficticio `demo-cliente1` contiene al menos dos asuntos de prueba (laboral y civil).
+3. Pulsar **Abrir expediente** y seleccionar cada asunto: aparece su propia cronología.
+4. Elegir una actuación predefinida (**Documentación revisada**, **Seguimiento realizado** o **Solicitud de información**) y pulsar **Agregar actuación**.
+5. Pulsar **Repetir última actuación**: la API debe devolver `replayed: true` sin duplicar el evento.
+6. Abrir el otro asunto: su cronología no recibe la actuación del primero.
+
+**API** (todas las rutas de datos requieren Bearer `STAGING_TEST_TOKEN`):
+- `GET /v2/demo/dossiers/:clientKey` devuelve un cliente ficticio, máximo 30 asuntos y hasta 30 eventos por asunto.
+- `POST /v2/demo/requests/:uuid/events` exige `Idempotency-Key`, `client_key`, `action` (review, followup, information), sin texto libre.
+- Escritura con `INSERT OR IGNORE ... SELECT` condicionada a pertenencia a un cliente de `staging_demo`, con identificador de actuación determinista basado en hash SHA-256 de requestId+idempotency-key.
+- Repetición idéntica devuelve 200; reutilización de la misma clave con otra actuación devuelve 409.
+- Los eventos se guardan en `request_events` ya existente; **no se necesita nueva migración** ni una tabla adicional.
+- El panel y la API no usan nombres, teléfonos, expedientes o clientes reales y no ejecutan cambios de estado de V1.
+- Pruebas GitHub Actions cubren la separación de dos historiales, idempotencia, autorización y aislamiento.
+
+**Pendientes para producción:** roles, permisos por recurso, historial firmado/auditado y transición de estados, conciliación del historial de migraciones D1, límites de uso y validación de consentimientos. No usar esta pantalla como panel público.
