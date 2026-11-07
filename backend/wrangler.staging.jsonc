@@ -12,7 +12,7 @@
       "binding": "DB",
       "database_name": "daurel-staging",
       "database_id": "9a10d215-203b-438c-afae-049b29a57e58",
-      "migrations_dir": "../migrations"
+      "migrations_dir": "migrations"
     }
   ]
 }
