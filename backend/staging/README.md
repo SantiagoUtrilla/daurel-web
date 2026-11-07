@@ -51,3 +51,20 @@ Un workflow de GitHub Actions está preparado en \`.github/workflows/staging-tes
 - Migrar información legacy solo tras ensayar y revisar una estrategia de corte verificable.
 
 **Nunca** usar esta API de laboratorio para capturar clientes reales.
+
+## 6. Panel administrativo V2: primera versión de lectura
+
+URL: `https://daurel-backend-staging.lmsantiagoutrilla.workers.dev/v2/demo/admin`.
+
+- Introducir el **mismo** `STAGING_TEST_TOKEN` configurado en el Worker de pruebas. No crear otra clave.
+- **Cargar panel**: solicita `GET /v2/demo/admin/data` con Bearer token.
+- Muestra clientes únicos, total de solicitudes, nuevas y en atención, y una tabla con folio, cliente ficticio, asunto, estado y fecha.
+- Permite filtrar y buscar localmente, sin escribir en D1.
+- El endpoint comprueba la autorización en el Worker, selecciona **solo** `intake_channel = 'staging_demo'` y limita la lista a las 100 solicitudes recientes; las cifras totales se calculan en SQL sobre toda la información sintética.
+- No hay acceso a expedientes, teléfonos ni información real y no se modifica ningún estado. No es todavía el panel administrativo de producción.
+- El código y pruebas se publican desde la rama `architecture/daurel-v2` en GitHub y se despliegan automáticamente a `daurel-backend-staging`.
+- Antes de usarse con datos reales: roles/usuarios, autenticación por sesión, autorización por recurso, paginación real, auditoría, revisión de conflictos y protección del panel.
+
+### Comprobación manual de la primera versión
+
+Después de confirmar que el nuevo despliegue esté en **Ready**, entrar al panel, pegar la clave técnica y pulsar **Cargar panel**. Deben mostrarse al menos los dos asuntos ficticios `demo-cliente1` (laboral y civil) creados en el laboratorio. No hay que ejecutar SQL ni actualizar los Secrets.
