@@ -38,3 +38,34 @@ export async function sendLoginCode(to, code, challengeId, env, transport=fetch)
   // No devolver el código ni datos de la API de correo al cliente.
   return {accepted:true};
 }
+
+
+// Únicamente prueba técnica de entrega: NO es un inicio de sesión y no genera OTP.
+// Destinatario fijo. Se requiere STAGING_TEST_TOKEN y límite por minuto en el Worker.
+export async function sendStagingTestEmail(env, minuteBucket, transport=fetch) {
+  if (!env?.RESEND_API_KEY || typeof env.RESEND_API_KEY !== "string" ||
+      !env?.AUTH_EMAIL_FROM || normalizeEmail(env.AUTH_EMAIL_FROM) !== "acceso@daurel.com.mx") {
+    return {accepted:false,reason:"not_configured"};
+  }
+  if (!Number.isSafeInteger(minuteBucket) || minuteBucket < 0) {
+    throw new TypeError("Ventana de prueba inválida");
+  }
+  const recipient="daurelcontact@gmail.com";
+  const result=await transport("https://api.resend.com/emails", {
+    method:"POST",
+    headers:{
+      "Authorization":"Bearer "+env.RESEND_API_KEY,
+      "Content-Type":"application/json",
+      "Idempotency-Key":"daurel-staging-delivery/"+minuteBucket,
+      "User-Agent":"DAUREL-V2-staging/1.0",
+    },
+    body:JSON.stringify({
+      from:"DAUREL <"+env.AUTH_EMAIL_FROM+">",
+      to:[recipient],
+      subject:"DAUREL V2 — Prueba de envío",
+      text:"Este correo confirma que Resend puede enviar mensajes desde acceso@daurel.com.mx. "+
+        "Es una prueba técnica; no contiene un código de inicio de sesión ni autoriza consultar expedientes.",
+    }),
+  });
+  return result.ok ? {accepted:true,recipient} : {accepted:false,reason:"provider_rejected"};
+}
