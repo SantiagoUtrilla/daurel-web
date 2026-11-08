@@ -1,6 +1,8 @@
 import { demoPageResponse } from "./demo-page.js";
 import { adminPageResponse } from "./admin-page.js";
 import { dossierPageResponse } from "./dossier-page.js";
+import { mailTestPageResponse } from "./email-test-page.js";
+import { sendStagingDeliveryProbe } from "./email-test-api.js";
 import { getDemoDossier, recordDemoAction } from "./dossier-api.js";
 // DAUREL V2 - Worker de staging. Solo pruebas, nunca tráfico de clientes.
 import {
@@ -65,6 +67,11 @@ export default {
       return dossierPageResponse();
     }
 
+    if (request.method === "GET" && url.pathname === "/v2/demo/mail") {
+      return mailTestPageResponse();
+    }
+
+    const isMailTest = request.method === "POST" && url.pathname === "/v2/demo/mail/test";
     const dossierMatch = request.method === "GET"
       ? /^\/v2\/demo\/dossiers\/(demo-[a-z0-9_-]{1,32})$/.exec(url.pathname)
       : null;
@@ -77,7 +84,7 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -90,6 +97,7 @@ export default {
     }
 
     try {
+      if (isMailTest) return await sendStagingDeliveryProbe(request, env);
       if (dossierMatch) return await getDemoDossier(env, dossierMatch[1]);
       if (actionMatch) return await recordDemoAction(request, env, actionMatch[1]);
       if (isDemoCreate) return await createDemoRequest(request, env);
