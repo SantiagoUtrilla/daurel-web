@@ -19,4 +19,4 @@ jobs:
         with:
           node-version: "22"
       - name: Test D1 staging API with in-memory SQLite
-        run: node --test backend/staging/demo-api.test.mjs
+        run: node --test backend/staging/*.test.mjs
