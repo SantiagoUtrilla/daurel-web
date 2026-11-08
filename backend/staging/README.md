@@ -95,3 +95,18 @@ También existe un enlace **Ver expediente** en cada fila del Panel Administrati
 - Pruebas GitHub Actions cubren la separación de dos historiales, idempotencia, autorización y aislamiento.
 
 **Pendientes para producción:** roles, permisos por recurso, historial firmado/auditado y transición de estados, conciliación del historial de migraciones D1, límites de uso y validación de consentimientos. No usar esta pantalla como panel público.
+
+## 8. Resend: prueba de entrega protegida, sin login todavía
+
+Resend verifica el dominio `daurel.com.mx` y el Worker staging debe tener:
+- `RESEND_API_KEY` tipo **Secret**: solo permisos de envío para `daurel.com.mx`.
+- `AUTH_EMAIL_FROM=acceso@daurel.com.mx` tipo **Text**.
+- `STAGING_TEST_TOKEN` tipo **Secret** ya configurado para pruebas.
+
+Abrir `https://daurel-backend-staging.lmsantiagoutrilla.workers.dev/v2/demo/mail`, introducir el secreto técnico **sin compartirlo** y pulsar **Enviar correo de prueba**. El mensaje se envía únicamente a `daurelcontact@gmail.com`, nunca a destinatarios ingresados libremente. **Es una prueba de entrega: no crea cuentas ni contiene OTP válidos.** Revisar bandeja de entrada y spam.
+
+El endpoint POST `/v2/demo/mail/test` está protegido con el mismo Bearer token del laboratorio y no admite body. Usa `integration_events` de la migración 0001 para permitir **un intento por minuto**, sin necesidad de tablas nuevas. Si Resend rechaza el envío, devuelve error genérico sin exponer el API Key. La prueba usa Idempotency-Key por minuto hacia Resend.
+
+**No aplicar todavía `0002_optional_accounts.sql`:** está diseñada, pero requiere conciliar `0001` con el historial de migraciones de D1 y construir cuidadosamente la autenticación real y sus controles. Ninguna prueba de correo da acceso a expedientes.
+
+Si Resend responde que el dominio no está permitido, revisar primero el remitente verificado y el ámbito de la API Key antes de cambiar DNS. No eliminar registros MX/SPF ya existentes de Cloudflare.
