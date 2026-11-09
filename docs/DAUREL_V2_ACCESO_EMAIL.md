@@ -50,3 +50,25 @@ Configuración prevista:
 - Revisión de sesiones/seguridad antes de entrar en producción.
 
 El panel V1 continúa operativo y sin cambios.
+
+## Piloto OTP implementado en staging (09/11/2026)
+
+Pantalla: `https://daurel-backend-staging.lmsantiagoutrilla.workers.dev/v2/demo/auth`
+
+- **No es el inicio de sesión público**. El Worker exige `STAGING_TEST_TOKEN` para todas las operaciones.
+- Solo destinatario: `daurelcontact@gmail.com`; no se aceptan datos ni direcciones ajenas.
+- Requiere `RESEND_API_KEY` Secret, `AUTH_EMAIL_FROM=acceso@daurel.com.mx` Text y un **Secret nuevo**, `AUTH_OTP_HMAC_SECRET`, aleatorio e independiente, de 40 caracteres o más (mínimo técnico 32).
+- También requiere que la base **`daurel-staging`** tenga aplicada la migración `backend/migrations/0002_optional_accounts.sql`. **No** aplicarla en `daurel-db` ni habilitar rutas para clientes.
+- Comprobar el estado sin acceder a datos sensibles en `/health`, campo `optional_account_schema.ready`. Hasta aplicar 0002 debe mostrarse `false`.
+- La migración 0001 se aplicó originalmente a mano en D1 Studio; antes de avanzar con 0002 se revisará el historial `d1_migrations`. **No usar automáticamente `wrangler d1 migrations apply`** hasta esa revisión; seguir instrucciones de compatibilidad con historial.
+- OTP aleatorio de seis dígitos enviado por Resend; HMAC-SHA256 almacenado en D1 en lugar del código, vigencia de 10 minutos, máximo cinco intentos, uso único.
+- Un código nuevo invalida los anteriores; un envío por bloque de cinco minutos; autenticación de prueba activa por ocho horas como máximo.
+- Cookie de sesión opaca `__Host-daurel_v2_pilot` con `Secure; HttpOnly; SameSite=Strict`, revocable en `/v2/demo/auth/logout`; únicamente la huella SHA-256 del token se guarda en D1.
+- No se concede automáticamente permiso sobre ningún expediente a una cuenta autenticada. No se entregan asuntos ni datos reales.
+- Pruebas automáticas Node/SQLite en GitHub verifican envío simulado, código equivocado, expiración, reuso, sesiones, revocación y ausencia de permisos.
+
+### Pasos antes de probar la UI
+1. Configurar el Secret `AUTH_OTP_HMAC_SECRET` **solo en Worker `daurel-backend-staging`**, entorno Production de ese Worker.
+2. Conciliar/inspeccionar `d1_migrations` y aplicar `0002_optional_accounts.sql` **solo a `daurel-staging`** con pasos controlados, comprobando la lista de siete tablas nuevas en `/health`.
+3. Ir a `/v2/demo/auth`, introducir la clave técnica `STAGING_TEST_TOKEN`, enviar código, leerlo en Gmail DAUREL y verificarlo. Comprobar sesión y cerrar sesión.
+4. Solo después desarrollar flujo real para usuarios finales, autorización individual y tratamiento de datos.
