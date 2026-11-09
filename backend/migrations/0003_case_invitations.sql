@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS case_invitations (
   expires_at TEXT NOT NULL,
   sent_at TEXT,
   redeemed_at TEXT,
+  redemption_nonce TEXT UNIQUE,
   redeemed_by_account_id TEXT REFERENCES accounts(account_id) ON DELETE RESTRICT,
   revoked_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
