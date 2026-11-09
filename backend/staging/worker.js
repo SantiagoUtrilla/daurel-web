@@ -5,6 +5,8 @@ import { mailTestPageResponse } from "./email-test-page.js";
 import { sendStagingDeliveryProbe } from "./email-test-api.js";
 import { authPilotPageResponse } from "./auth-pilot-page.js";
 import { accountLinkPageResponse } from "./account-link-page.js";
+import {invitationPageResponse} from "./invitation-page.js";
+import {issuePilotInvite,redeemPilotInvite,viewPilotInvitedMatters} from "./invitation-api.js";
 import {viewPilotAccount, linkPilotClient, unlinkPilotClient} from "./account-link-api.js";
 import {
   startPilotLogin,verifyPilotLogin,getPilotSession,logoutPilotSession
@@ -96,6 +98,12 @@ export default {
     if(request.method==="GET" && url.pathname==="/v2/demo/account"){
       return accountLinkPageResponse();
     }
+    if(request.method==="GET" && url.pathname==="/v2/demo/invitations"){
+      return invitationPageResponse();
+    }
+    const isInviteIssue=request.method==="POST" && url.pathname==="/v2/demo/invitations/issue";
+    const isInviteRedeem=request.method==="POST" && url.pathname==="/v2/demo/invitations/redeem";
+    const isInviteView=request.method==="GET" && url.pathname==="/v2/demo/invitations/my-cases";
     const isAccountView=request.method==="GET" && url.pathname==="/v2/demo/account/data";
     const isAccountLink=request.method==="POST" && url.pathname==="/v2/demo/account/link";
     const isAccountUnlink=request.method==="POST" && url.pathname==="/v2/demo/account/unlink";
@@ -116,7 +124,7 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -129,6 +137,9 @@ export default {
     }
 
     try {
+      if(isInviteIssue)return await issuePilotInvite(request,env);
+      if(isInviteRedeem)return await redeemPilotInvite(request,env);
+      if(isInviteView)return await viewPilotInvitedMatters(request,env);
       if(isAccountView)return await viewPilotAccount(request,env);
       if(isAccountLink)return await linkPilotClient(request,env);
       if(isAccountUnlink)return await unlinkPilotClient(request,env);
