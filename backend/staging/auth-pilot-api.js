@@ -232,7 +232,7 @@ export async function verifyPilotLogin(request, env, now = Date.now()) {
   },200,{"Set-Cookie":sessionCookie(token,8*60*60)});
 }
 
-async function sessionRecord(request,env,now) {
+export async function sessionRecord(request,env,now) {
   const token=parseCookie(request);
   if (!token) return null;
   const hashed=await tokenHash(token);
