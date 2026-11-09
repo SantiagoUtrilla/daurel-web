@@ -1,5 +1,7 @@
 -- DAUREL V2 / 0002 - Cuentas OPCIONALES, inicio de sesión por email
--- Solo staging. NO aplicar todavía hasta conciliar 0001 en d1_migrations.
+-- SOLO daurel-staging. Aplicación manual en D1 Console, tras comprobar 18 tablas base y 0 tablas de cuentas.
+-- d1_migrations NO EXISTE: documentar aplicación manual; no ejecutar Wrangler migrations apply
+-- contra esta base hasta reconciliar primero el historial para evitar reejecuciones.
 -- Las partes (parties) y solicitudes existen sin cuentas.
 -- Verificar email no implica acceso automático a ninguna party ni expediente.
 
