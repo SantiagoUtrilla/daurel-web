@@ -72,3 +72,15 @@ Pantalla: `https://daurel-backend-staging.lmsantiagoutrilla.workers.dev/v2/demo/
 2. Conciliar/inspeccionar `d1_migrations` y aplicar `0002_optional_accounts.sql` **solo a `daurel-staging`** con pasos controlados, comprobando la lista de siete tablas nuevas en `/health`.
 3. Ir a `/v2/demo/auth`, introducir la clave técnica `STAGING_TEST_TOKEN`, enviar código, leerlo en Gmail DAUREL y verificarlo. Comprobar sesión y cerrar sesión.
 4. Solo después desarrollar flujo real para usuarios finales, autorización individual y tratamiento de datos.
+
+## Laboratorio de vinculación por cuenta verificada (noviembre 2026)
+
+Rutas de ensayo:
+- `GET /v2/demo/account`: pantalla «Mis asuntos ficticios».
+- `GET /v2/demo/account/data`: lista solo los asuntos `staging_demo` para parties que figuran en `account_party_access` con concesión activa del titular verificado.
+- `POST /v2/demo/account/link`: autorización **explícita, manual y simulada** para asociar una sesión OTP verificada con un `demo-*` existente. Requiere confirmación predefinida, `STAGING_TEST_TOKEN`, cookie vigente y origen válido.
+- `POST /v2/demo/account/unlink`: revoca esa asociación y registra auditoría.
+
+**Invariantes importantes:** Verificar correo no concede accesos; una cuenta nueva muestra cero casos. Vincular un cliente ficticio no vincula automáticamente otros clientes. Revocar oculta inmediatamente todos sus casos. Las asociaciones no operan sobre producción, y el permiso real de clientes requerirá pruebas adicionales de identidad, titularidad o representación. Los operadores no deben usar este botón para autorizar casos reales.
+
+Prueba manual: después de completar OTP en `/v2/demo/auth`, abrir `/v2/demo/account`. Introducir la misma clave técnica. «Ver mis asuntos» muestra 0; «Vincular cliente ficticio» con `demo-cliente1` muestra sus dos asuntos laborales/civiles; «Revocar acceso» vuelve a 0. Al cerrar la sesión OTP, las consultas protegidas deben rechazar el acceso.
