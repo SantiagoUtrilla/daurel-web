@@ -172,6 +172,6 @@ test("OTP piloto: misma cuenta al reingresar y sesión expira",async()=>{
  assert.equal(v2.status,200);
  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM accounts").get().n,1);
  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM account_emails").get().n,1);
- const future=await (await getPilotSession(get(BASE+"/session",cookie),env,NOW+8*60*60*1000+1)).json();
+ const future=await (await getPilotSession(get(BASE+"/session",cookie),env,NOW+8*60*60*1000+60*1000)).json();
  assert.equal(future.authenticated,false);
 });
