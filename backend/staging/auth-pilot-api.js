@@ -24,12 +24,25 @@ function reply(data, status = 200, headers = {}) {
   Object.entries(headers).forEach(([k, v]) => r.headers.set(k, v));
   return noStore(r);
 }
+// Diagnóstico permitido solo tras validar STAGING_TEST_TOKEN en worker.js.
+// Únicamente nombres de variables inválidas; nunca valores ni longitudes reales.
+function missingOtpConfiguration(env) {
+  const missing = [];
+  if (typeof env.AUTH_OTP_HMAC_SECRET !== "string" ||
+      env.AUTH_OTP_HMAC_SECRET.length < 32) {
+    missing.push("AUTH_OTP_HMAC_SECRET");
+  }
+  if (typeof env.RESEND_API_KEY !== "string" ||
+      env.RESEND_API_KEY.length < 10) {
+    missing.push("RESEND_API_KEY");
+  }
+  if (env.AUTH_EMAIL_FROM !== "acceso@daurel.com.mx") {
+    missing.push("AUTH_EMAIL_FROM");
+  }
+  return missing;
+}
 function configured(env) {
-  return typeof env.AUTH_OTP_HMAC_SECRET === "string" &&
-    env.AUTH_OTP_HMAC_SECRET.length >= 32 &&
-    typeof env.RESEND_API_KEY === "string" &&
-    env.RESEND_API_KEY.length >= 10 &&
-    env.AUTH_EMAIL_FROM === "acceso@daurel.com.mx";
+  return missingOtpConfiguration(env).length === 0;
 }
 async function schemaReady(db) {
   const r = await db.prepare(
@@ -73,8 +86,14 @@ export async function startPilotLogin(request, env, transport = fetch, now = Dat
   if (!originAllowed(request) || !validNoBody(request)) {
     return reply({success:false,message:"Solicitud no permitida."},400);
   }
-  if (!configured(env)) {
-    return reply({success:false,message:"Falta configuración técnica de OTP en staging."},503);
+  const missingConfig = missingOtpConfiguration(env);
+  if (missingConfig.length) {
+    return reply({
+      success:false,
+      message:"Revisa en Cloudflare staging la configuración de: " +
+        missingConfig.join(", ") + ".",
+      missing_variables:missingConfig,
+    },503);
   }
   if (!await schemaReady(env.DB)) {
     return reply({success:false,message:"Falta aplicar el esquema de cuentas 0002 en daurel-staging."},503);
