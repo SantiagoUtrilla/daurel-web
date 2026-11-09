@@ -4,6 +4,8 @@ import { dossierPageResponse } from "./dossier-page.js";
 import { mailTestPageResponse } from "./email-test-page.js";
 import { sendStagingDeliveryProbe } from "./email-test-api.js";
 import { authPilotPageResponse } from "./auth-pilot-page.js";
+import { accountLinkPageResponse } from "./account-link-page.js";
+import {viewPilotAccount, linkPilotClient, unlinkPilotClient} from "./account-link-api.js";
 import {
   startPilotLogin,verifyPilotLogin,getPilotSession,logoutPilotSession
 } from "./auth-pilot-api.js";
@@ -91,6 +93,12 @@ export default {
     if(request.method === "GET" && url.pathname === "/v2/demo/auth") {
       return authPilotPageResponse();
     }
+    if(request.method==="GET" && url.pathname==="/v2/demo/account"){
+      return accountLinkPageResponse();
+    }
+    const isAccountView=request.method==="GET" && url.pathname==="/v2/demo/account/data";
+    const isAccountLink=request.method==="POST" && url.pathname==="/v2/demo/account/link";
+    const isAccountUnlink=request.method==="POST" && url.pathname==="/v2/demo/account/unlink";
     const isPilotStart = request.method === "POST" && url.pathname === "/v2/demo/auth/start";
     const isPilotVerify = request.method === "POST" && url.pathname === "/v2/demo/auth/verify";
     const isPilotSession = request.method === "GET" && url.pathname === "/v2/demo/auth/session";
@@ -108,7 +116,7 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -121,6 +129,9 @@ export default {
     }
 
     try {
+      if(isAccountView)return await viewPilotAccount(request,env);
+      if(isAccountLink)return await linkPilotClient(request,env);
+      if(isAccountUnlink)return await unlinkPilotClient(request,env);
       if (isPilotStart) return await startPilotLogin(request,env);
       if (isPilotVerify) return await verifyPilotLogin(request,env);
       if (isPilotSession) return await getPilotSession(request,env);
