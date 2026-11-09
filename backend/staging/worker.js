@@ -17,6 +17,10 @@ import {
   authorizeDemo, createDemoRequest, listDemoClientRequests, getDemoAdminOverview, json,
 } from "./demo-api.js";
 
+const OPTIONAL_INVITATION_TABLES = [
+  "case_invitations", "account_request_access", "case_access_audit",
+];
+
 const OPTIONAL_ACCOUNT_TABLES = [
   "accounts", "account_emails", "account_party_access",
   "login_challenges", "account_sessions", "auth_rate_limits",
@@ -41,6 +45,7 @@ async function health(env) {
     const present = new Set(results.map((row) => row.name));
     const missingTables = REQUIRED_TABLES.filter((table) => !present.has(table));
     const missingAccountTables = OPTIONAL_ACCOUNT_TABLES.filter((table) => !present.has(table));
+    const missingInvitationTables = OPTIONAL_INVITATION_TABLES.filter((table) => !present.has(table));
     return json({
       service: "DAUREL V2 staging",
       status: missingTables.length ? "schema_incomplete" : "online",
@@ -57,6 +62,12 @@ async function health(env) {
         expected_tables: OPTIONAL_ACCOUNT_TABLES.length,
         found_tables: OPTIONAL_ACCOUNT_TABLES.length - missingAccountTables.length,
         missing_tables: missingAccountTables,
+      },
+      optional_invitation_schema: {
+        ready: missingInvitationTables.length === 0,
+        expected_tables: OPTIONAL_INVITATION_TABLES.length,
+        found_tables: OPTIONAL_INVITATION_TABLES.length - missingInvitationTables.length,
+        missing_tables: missingInvitationTables,
       },
     }, missingTables.length ? 503 : 200);
   } catch {
