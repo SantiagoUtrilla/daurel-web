@@ -84,3 +84,18 @@ Rutas de ensayo:
 **Invariantes importantes:** Verificar correo no concede accesos; una cuenta nueva muestra cero casos. Vincular un cliente ficticio no vincula automáticamente otros clientes. Revocar oculta inmediatamente todos sus casos. Las asociaciones no operan sobre producción, y el permiso real de clientes requerirá pruebas adicionales de identidad, titularidad o representación. Los operadores no deben usar este botón para autorizar casos reales.
 
 Prueba manual: después de completar OTP en `/v2/demo/auth`, abrir `/v2/demo/account`. Introducir la misma clave técnica. «Ver mis asuntos» muestra 0; «Vincular cliente ficticio» con `demo-cliente1` muestra sus dos asuntos laborales/civiles; «Revocar acceso» vuelve a 0. Al cerrar la sesión OTP, las consultas protegidas deben rechazar el acceso.
+
+## Invitaciones de acceso por expediente (piloto 0003 · noviembre 2026)
+
+Flujo de pruebas, **no habilitado para clientes reales**:
+1. Un operador técnico con `STAGING_TEST_TOKEN` entra a `/v2/demo/invitations`, selecciona el cliente ficticio y el asunto Laboral/Civil, y confirma el envío.
+2. La invitación llega **solo** a `daurelcontact@gmail.com` con un código aleatorio de 43 caracteres, válido durante 24 horas y de un solo uso. Ni el navegador ni D1 reciben el código en texto plano: D1 almacena solo el SHA-256.
+3. El usuario debe haber iniciado sesión mediante el código OTP del correo en `/v2/demo/auth`. Después introduce el código de invitación en la pantalla.
+4. `POST /v2/demo/invitations/redeem` solo concede el permiso **al request_id específico** en `account_request_access`; `GET /v2/demo/invitations/my-cases` no muestra otros expedientes de la misma party sin una autorización individual.
+5. Los intentos de canje repetidos no funcionan, ni restauran una revocación anterior. Hay auditoría en `case_access_audit`.
+
+**Base de datos:** se requiere aplicar manualmente el archivo `backend/migrations/0003_case_invitations.sql` **solo en `daurel-staging`** mediante D1 Studio → Run all in sequence. Son tres tablas y cuatro índices. No utilizar la Consola de D1 para ejecutar todo el archivo: anteriormente devolvió `No SQL statements detected`. Tampoco usar `wrangler d1 migrations apply` hasta conciliar `d1_migrations` tras las primeras migraciones manuales.
+
+El endpoint `/health` informa `optional_invitation_schema.ready`, que será `true` solo cuando estén presentes las tres tablas. No hay que configurar otra contraseña.
+
+**Límite de este piloto:** el técnico del laboratorio actúa como emisor; la versión pública requerirá una identidad de operador con permisos concretos, verificación de representación/titularidad, límites de envío por destinatario/IP y controles de privacidad. No activar estas rutas en la web pública ni cambiar su destinatario fijo hasta completar esas capas.
