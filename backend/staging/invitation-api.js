@@ -147,31 +147,32 @@ export async function redeemPilotInvite(request,env,now=Date.now()){
  }
  const hash=await tokenHash(data.code);
  const auditId=crypto.randomUUID();
+ const nonce=crypto.randomUUID();
  const timestamp=new Date(now).toISOString();
  // D1 batch es atómico. Solo el primer canje puede marcar el código consumido.
  // Las inserciones de permisos dependen del registro consumido POR esta cuenta.
  const results=await env.DB.batch([
   env.DB.prepare([
-   "UPDATE case_invitations SET redeemed_at=CURRENT_TIMESTAMP,redeemed_by_account_id=?",
+   "UPDATE case_invitations SET redeemed_at=CURRENT_TIMESTAMP,redeemed_by_account_id=?,redemption_nonce=?",
    "WHERE code_sha256=? AND intended_email=? AND redeemed_at IS NULL",
    "AND revoked_at IS NULL AND sent_at IS NOT NULL AND expires_at>?",
    "AND EXISTS(SELECT 1 FROM service_requests sr",
    "WHERE sr.request_id=case_invitations.request_id AND sr.intake_channel='staging_demo')",
-  ].join(" ")).bind(s.account_id,hash,s.email_normalized,timestamp),
+  ].join(" ")).bind(s.account_id,nonce,hash,s.email_normalized,timestamp),
   env.DB.prepare([
    "INSERT INTO account_request_access(account_id,request_id,permission,grant_basis)",
    "SELECT ?, ci.request_id,'view','case_invitation'",
    "FROM case_invitations ci",
-   "WHERE ci.code_sha256=? AND ci.redeemed_by_account_id=? AND ci.redeemed_at IS NOT NULL",
+   "WHERE ci.code_sha256=? AND ci.redeemed_by_account_id=? AND ci.redemption_nonce=?",
    "ON CONFLICT(account_id,request_id) DO UPDATE SET",
    "permission='view',grant_basis='case_invitation',revoked_at=NULL",
-  ].join(" ")).bind(s.account_id,hash,s.account_id),
+  ].join(" ")).bind(s.account_id,hash,s.account_id,nonce),
   env.DB.prepare([
    "INSERT INTO case_access_audit(audit_id,request_id,account_id,invitation_id,event_type)",
    "SELECT ?,ci.request_id,?,ci.invitation_id,'invitation_redeemed'",
    "FROM case_invitations ci WHERE ci.code_sha256=?",
-   "AND ci.redeemed_by_account_id=? AND ci.redeemed_at IS NOT NULL",
-  ].join(" ")).bind(auditId,s.account_id,hash,s.account_id),
+   "AND ci.redeemed_by_account_id=? AND ci.redemption_nonce=?",
+  ].join(" ")).bind(auditId,s.account_id,hash,s.account_id,nonce),
  ]);
  if(results?.[0]?.meta?.changes!==1){
   return out({success:false,message:"Invitación inválida, vencida o ya utilizada."},401);
