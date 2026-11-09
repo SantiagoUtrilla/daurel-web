@@ -13,6 +13,12 @@ import {
   authorizeDemo, createDemoRequest, listDemoClientRequests, getDemoAdminOverview, json,
 } from "./demo-api.js";
 
+const OPTIONAL_ACCOUNT_TABLES = [
+  "accounts", "account_emails", "account_party_access",
+  "login_challenges", "account_sessions", "auth_rate_limits",
+  "account_access_audit",
+];
+
 const REQUIRED_TABLES = [
   "parties", "persons", "organizations", "party_contacts", "channel_accounts",
   "external_identities", "professions", "services", "service_professions",
@@ -30,6 +36,7 @@ async function health(env) {
     ).all();
     const present = new Set(results.map((row) => row.name));
     const missingTables = REQUIRED_TABLES.filter((table) => !present.has(table));
+    const missingAccountTables = OPTIONAL_ACCOUNT_TABLES.filter((table) => !present.has(table));
     return json({
       service: "DAUREL V2 staging",
       status: missingTables.length ? "schema_incomplete" : "online",
@@ -40,6 +47,12 @@ async function health(env) {
         expected_tables: REQUIRED_TABLES.length,
         found_tables: REQUIRED_TABLES.length - missingTables.length,
         missing_tables: missingTables,
+      },
+      optional_account_schema: {
+        ready: missingAccountTables.length === 0,
+        expected_tables: OPTIONAL_ACCOUNT_TABLES.length,
+        found_tables: OPTIONAL_ACCOUNT_TABLES.length - missingAccountTables.length,
+        missing_tables: missingAccountTables,
       },
     }, missingTables.length ? 503 : 200);
   } catch {
