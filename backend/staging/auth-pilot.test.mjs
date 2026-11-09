@@ -141,6 +141,17 @@ test("OTP piloto: fail closed, Resend caído, CORS, secreto independiente y sche
  const noEnv=await startPilotLogin(post(BASE+"/start"),{...env,AUTH_OTP_HMAC_SECRET:undefined},
   async()=>{throw Error("No debe llamarse");},NOW);
  assert.equal(noEnv.status,503);
+ const configError=await noEnv.json();
+ assert.deepEqual(configError.missing_variables,["AUTH_OTP_HMAC_SECRET"]);
+ assert.ok(!JSON.stringify(configError).includes("otra-clave-de-firma"));
+ const noSender=await startPilotLogin(post(BASE+"/start"),
+  {...env,AUTH_EMAIL_FROM:"remitente-invalido"},
+  async()=>{throw Error("No debe llamar al proveedor");},NOW);
+ assert.deepEqual((await noSender.json()).missing_variables,["AUTH_EMAIL_FROM"]);
+ const noResend=await startPilotLogin(post(BASE+"/start"),
+  {...env,RESEND_API_KEY:undefined},
+  async()=>{throw Error("No debe llamar al proveedor");},NOW);
+ assert.deepEqual((await noResend.json()).missing_variables,["RESEND_API_KEY"]);
  const {env:oldSchema}=fixture(false);
  assert.equal((await startPilotLogin(post(BASE+"/start"),oldSchema,
   async()=>{throw Error("No se llama");},NOW)).status,503);
