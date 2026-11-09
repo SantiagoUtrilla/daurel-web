@@ -5,7 +5,8 @@
   "compatibility_date": "2026-10-24",
   "workers_dev": true,
   "vars": {
-    "ENVIRONMENT": "staging"
+    "ENVIRONMENT": "staging",
+    "AUTH_EMAIL_FROM": "acceso@daurel.com.mx"
   },
   "d1_databases": [
     {
