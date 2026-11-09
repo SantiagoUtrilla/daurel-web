@@ -11,7 +11,7 @@ import worker from "./worker.js";
 const TECH="clave-tecnica-larga-de-pruebas-sinteticas-1234567890";
 const HMAC="otra-clave-de-firma-otp-independiente-muy-larga-2026";
 const NOW=Date.parse("2026-11-09T20:00:00.000Z");
-const URL="https://staging.invalid/v2/demo/auth";
+const BASE="https://staging.invalid/v2/demo/auth";
 
 function fixture(schema=true){
  const sqlite=new DatabaseSync(":memory:");
@@ -67,7 +67,7 @@ test("OTP piloto: envío real simulado, sesión HttpOnly, sin expedientes y revo
   assert.match(init.headers.Authorization,/^Bearer re_/);
   return {ok:true};
  };
- const start=await startPilotLogin(post(URL+"/start"),env,mockProvider,NOW);
+ const start=await startPilotLogin(post(BASE+"/start"),env,mockProvider,NOW);
  assert.equal(start.status,202);
  const result=await start.json();
  assert.equal(result.recipient,"daurelcontact@gmail.com");
@@ -82,11 +82,11 @@ test("OTP piloto: envío real simulado, sesión HttpOnly, sin expedientes y revo
  assert.equal(challenge.attempts,0);
  assert.ok(!challenge.otp_hmac.includes(code));
 
- const wrong=await verifyPilotLogin(post(URL+"/verify",{
+ const wrong=await verifyPilotLogin(post(BASE+"/verify",{
   challenge_id:result.challenge_id,code:code==="000000"?"123456":"000000"
  }),env,NOW+1000);
  assert.equal(wrong.status,401);
- const verified=await verifyPilotLogin(post(URL+"/verify",{
+ const verified=await verifyPilotLogin(post(BASE+"/verify",{
   challenge_id:result.challenge_id,code
  }),env,NOW+2000);
  assert.equal(verified.status,200);
@@ -99,18 +99,18 @@ test("OTP piloto: envío real simulado, sesión HttpOnly, sin expedientes y revo
  assert.match(setCookie,/Secure/);
  assert.match(setCookie,/SameSite=Strict/);
  const cookie=setCookie.split(";")[0];
- const session=await getPilotSession(get(URL+"/session",cookie),env,NOW+3000);
+ const session=await getPilotSession(get(BASE+"/session",cookie),env,NOW+3000);
  assert.equal((await session.json()).authenticated,true);
  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM accounts").get().n,1);
  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM account_party_access").get().n,0);
  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM account_sessions").get().n,1);
  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM account_access_audit").get().n,1);
- const replay=await verifyPilotLogin(post(URL+"/verify",{challenge_id:result.challenge_id,code}),env,NOW+4000);
+ const replay=await verifyPilotLogin(post(BASE+"/verify",{challenge_id:result.challenge_id,code}),env,NOW+4000);
  assert.equal(replay.status,401);
- const logout=await logoutPilotSession(post(URL+"/logout",undefined,{Cookie:cookie}),env,NOW+5000);
+ const logout=await logoutPilotSession(post(BASE+"/logout",undefined,{Cookie:cookie}),env,NOW+5000);
  assert.equal(logout.status,200);
  assert.match(logout.headers.get("Set-Cookie"),/Max-Age=0/);
- assert.equal((await (await getPilotSession(get(URL+"/session",cookie),env,NOW+6000)).json()).authenticated,false);
+ assert.equal((await (await getPilotSession(get(BASE+"/session",cookie),env,NOW+6000)).json()).authenticated,false);
 });
 
 test("OTP piloto: límite de envío, expiración y cinco intentos",async()=>{
@@ -119,18 +119,18 @@ test("OTP piloto: límite de envío, expiración y cinco intentos",async()=>{
  const provider=async(_url,opts)=>{
   otp=/Tu código temporal es: (\d{6})/.exec(JSON.parse(opts.body).text)[1];return {ok:true};
  };
- const a=await (await startPilotLogin(post(URL+"/start"),env,provider,NOW)).json();
- assert.equal((await startPilotLogin(post(URL+"/start"),env,provider,NOW+1000)).status,429);
+ const a=await (await startPilotLogin(post(BASE+"/start"),env,provider,NOW)).json();
+ assert.equal((await startPilotLogin(post(BASE+"/start"),env,provider,NOW+1000)).status,429);
  let wrongCode=otp==="123456"?"654321":"123456";
  for(let i=0;i<5;i++){
-  const r=await verifyPilotLogin(post(URL+"/verify",{challenge_id:a.challenge_id,code:wrongCode}),env,NOW+2000+i);
+  const r=await verifyPilotLogin(post(BASE+"/verify",{challenge_id:a.challenge_id,code:wrongCode}),env,NOW+2000+i);
   assert.equal(r.status,401);
  }
  assert.equal(sqlite.prepare("SELECT attempts FROM login_challenges WHERE challenge_id=?").get(a.challenge_id).attempts,5);
- assert.equal((await verifyPilotLogin(post(URL+"/verify",{challenge_id:a.challenge_id,code:otp}),env,NOW+4000)).status,401);
+ assert.equal((await verifyPilotLogin(post(BASE+"/verify",{challenge_id:a.challenge_id,code:otp}),env,NOW+4000)).status,401);
 
- const b=await (await startPilotLogin(post(URL+"/start"),env,provider,NOW+RATE_FIVE_MIN())).json();
- const expired=await verifyPilotLogin(post(URL+"/verify",{challenge_id:b.challenge_id,code:otp}),env,NOW+RATE_FIVE_MIN()+10*60*1000+1);
+ const b=await (await startPilotLogin(post(BASE+"/start"),env,provider,NOW+RATE_FIVE_MIN())).json();
+ const expired=await verifyPilotLogin(post(BASE+"/verify",{challenge_id:b.challenge_id,code:otp}),env,NOW+RATE_FIVE_MIN()+10*60*1000+1);
  assert.equal(expired.status,401);
  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM account_sessions").get().n,0);
 });
@@ -138,21 +138,21 @@ function RATE_FIVE_MIN(){return 5*60*1000}
 
 test("OTP piloto: fail closed, Resend caído, CORS, secreto independiente y schema ausente",async()=>{
  const {env}=fixture();
- const noEnv=await startPilotLogin(post(URL+"/start"),{...env,AUTH_OTP_HMAC_SECRET:undefined},
+ const noEnv=await startPilotLogin(post(BASE+"/start"),{...env,AUTH_OTP_HMAC_SECRET:undefined},
   async()=>{throw Error("No debe llamarse");},NOW);
  assert.equal(noEnv.status,503);
  const {env:oldSchema}=fixture(false);
- assert.equal((await startPilotLogin(post(URL+"/start"),oldSchema,
+ assert.equal((await startPilotLogin(post(BASE+"/start"),oldSchema,
   async()=>{throw Error("No se llama");},NOW)).status,503);
- const badOrigin=await startPilotLogin(post(URL+"/start",undefined,{Origin:"https://evil.invalid"}),env,
+ const badOrigin=await startPilotLogin(post(BASE+"/start",undefined,{Origin:"https://evil.invalid"}),env,
   async()=>({ok:true}),NOW);
  assert.equal(badOrigin.status,400);
- const providerFailed=await startPilotLogin(post(URL+"/start"),env,async()=>({ok:false}),NOW);
+ const providerFailed=await startPilotLogin(post(BASE+"/start"),env,async()=>({ok:false}),NOW);
  assert.equal(providerFailed.status,502);
  const {env:protectedEnv}=fixture();
- const noAuth=await worker.fetch(new Request(URL+"/start",{method:"POST"}),protectedEnv);
+ const noAuth=await worker.fetch(new Request(BASE+"/start",{method:"POST"}),protectedEnv);
  assert.equal(noAuth.status,401);
- const noAuthSession=await worker.fetch(new Request(URL+"/session"),protectedEnv);
+ const noAuthSession=await worker.fetch(new Request(BASE+"/session"),protectedEnv);
  assert.equal(noAuthSession.status,401);
 });
 
@@ -163,15 +163,15 @@ test("OTP piloto: misma cuenta al reingresar y sesión expira",async()=>{
   code=/Tu código temporal es: (\d{6})/.exec(JSON.parse(init.body).text)[1];
   return {ok:true};
  };
- const a=await (await startPilotLogin(post(URL+"/start"),env,provider,NOW)).json();
- const v1=await verifyPilotLogin(post(URL+"/verify",{challenge_id:a.challenge_id,code}),env,NOW+10);
+ const a=await (await startPilotLogin(post(BASE+"/start"),env,provider,NOW)).json();
+ const v1=await verifyPilotLogin(post(BASE+"/verify",{challenge_id:a.challenge_id,code}),env,NOW+10);
  assert.equal(v1.status,200);
  const cookie=v1.headers.get("Set-Cookie").split(";")[0];
- const b=await (await startPilotLogin(post(URL+"/start"),env,provider,NOW+6*60*1000)).json();
- const v2=await verifyPilotLogin(post(URL+"/verify",{challenge_id:b.challenge_id,code}),env,NOW+6*60*1000+100);
+ const b=await (await startPilotLogin(post(BASE+"/start"),env,provider,NOW+6*60*1000)).json();
+ const v2=await verifyPilotLogin(post(BASE+"/verify",{challenge_id:b.challenge_id,code}),env,NOW+6*60*1000+100);
  assert.equal(v2.status,200);
  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM accounts").get().n,1);
  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM account_emails").get().n,1);
- const future=await (await getPilotSession(get(URL+"/session",cookie),env,NOW+8*60*60*1000+1)).json();
+ const future=await (await getPilotSession(get(BASE+"/session",cookie),env,NOW+8*60*60*1000+1)).json();
  assert.equal(future.authenticated,false);
 });
