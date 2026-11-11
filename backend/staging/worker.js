@@ -1,5 +1,6 @@
 import { demoPageResponse } from "./demo-page.js";
 import {operatorPageResponse} from "./operator-page.js";
+import {operatorAuditLog} from "./operator-audit.js";
 import {
  operatorSchemaReady,operatorEnrolled,operatorIdentity,operatorStatus,
  operatorStart,operatorVerify,operatorLogout,roleAllows,auditOperatorOperation,
@@ -204,6 +205,7 @@ export default {
     const operatorHistoryMatch=request.method==="GET"
       ? /^\/v2\/operator\/api\/history\/([0-9a-f-]{36})$/i.exec(url.pathname)
       : null;
+    const isOperatorAudit=request.method==="GET" && url.pathname==="/v2/operator/api/audit";
     const isOperatorQueue=request.method==="GET" && url.pathname==="/v2/operator/api/queue";
     const isOperatorStatus=request.method==="POST" && url.pathname==="/v2/operator/api/status";
     const isOperatorInvite=request.method==="POST" && url.pathname==="/v2/operator/api/invite";
@@ -230,7 +232,7 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover && !isOperatorCreate && !operatorHistoryMatch) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover && !isOperatorCreate && !operatorHistoryMatch && !isOperatorAudit) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -267,6 +269,7 @@ export default {
       if(isFollowupCancel)return await changeFollowup(request,env,"cancel");
       if(isOperatorActions)return operatorActionCatalog();
       if(isOperatorRecord)return await operatorRecordAction(request,env);
+      if(isOperatorAudit)return await operatorAuditLog(env,operatorActor);
       if(isOperatorQueue)return await operatorQueue(env);
       if(isOperatorCreate)return await operatorCreate(request,env);
       if(operatorHistoryMatch)return await operatorHistory(env,operatorHistoryMatch[1]);
