@@ -260,3 +260,26 @@ La lectura exige **cookie administrativa activa y rol owner**. Las cookies del c
 Prueba: abrir `/v2/operator` con sesión de administrador; localizar `Bitácora de administración`, pulsar `Actualizar bitácora`; confirmar que aparecen los eventos exitosos de ingreso. Al cerrar sesión administrativa, el panel y su bitácora deben quedar inaccesibles. Todo permanece aislado en `daurel-staging`.
 
 Siguiente módulo antes de añadir colaboradores reales: alta y revocación de membresías con autorización expresa, correos individuales verificados, permisos mínimos por rol y trazabilidad de cada cambio. No asignar roles manualmente en D1 a empleados reales. No utilizar estas herramientas con solicitudes de clientes reales hasta completar revisión de seguridad y privacidad.
+
+## 17. Administración individual de colaboradores (migración 0007; SOLO staging)
+
+El propietario ya utiliza `0006` y OTP de correo. Para que cada colaborador tenga su propio acceso sin simular que su correo ya fue verificado, es necesario el archivo **`backend/migrations/0007_operator_approvals.sql`**. Contiene exactamente **una tabla y un índice**; los registros existentes no se modifican. Instalar **solo** en Cloudflare D1 `daurel-staging` → Studio (Run all in sequence), nunca en `daurel-db`. No aplicar migraciones automáticas de Wrangler hasta conciliar su historial.
+
+**Por qué 0007 es indispensable:** `account_emails.verified_at` en `0002` es `NOT NULL`. Autorizar a una persona no demuestra la propiedad del correo. `operator_approved_emails` almacena de forma independiente la autorización explícita del propietario; `account_emails` se crea únicamente tras validar el código enviado a esa dirección.
+
+Funcionamiento del panel `/v2/operator`:
+1. Propietario con sesión abierta: sección «Administrar colaboradores» → introducir correo y elegir `reader` o `manager` → «Autorizar colaborador». No envía ningún correo en ese momento ni genera sesión.
+2. Compartir de forma privada el URL del panel (el mismo para todos). El colaborador escribe el correo previamente autorizado y pulsa «Recibir código para entrar». La primera verificación OTP crea la confirmación del email; cada sesión usa su propia cookie, dura hasta cuatro horas y nunca usa `STAGING_TEST_TOKEN`.
+3. `reader`: consulta bandeja, historial y pendientes, sin modificar. Su interfaz oculta los controles de creación y actualización; el backend también rechaza la escritura.
+4. `manager`: gestiona expedientes **ficticios**, sin acceder a la bitácora general, permisos de equipo ni configuración de Telegram.
+5. Propietario puede cambiar rol o desactivar a alguien. El cambio invalida **todas las sesiones** y **códigos OTP pendientes** del colaborador; es necesario iniciar sesión de nuevo tras reactivación. No permite elevar a nadie a `owner` ni desactivar al propietario.
+6. Ver la lista de miembros, estado y verificación. No dar por verificado un correo hasta recibir y utilizar correctamente el OTP. No probar la función con colaboradores reales ni datos sensibles hasta completar las salvaguardas de producción.
+
+Rutas protegidas por sesión/rol owner:
+- `GET /v2/operator/api/team/list`
+- `POST /v2/operator/api/team/add` con `email` y `role`
+- `POST /v2/operator/api/team/change` con `account_id`, `role`, `status`.
+
+La configuración actual no crea invitaciones por correo ni un directorio corporativo y está limitada a 15 colaboradores en staging. Al no existir la tabla 0007, la sección de equipo muestra un aviso de instalación, **pero el inicio de sesión ya activado de la cuenta propietaria sigue funcionando**. El endpoint `/health` muestra `optional_team_schema.ready`.
+
+**Límites del piloto**: la asignación de rol es global a todos los expedientes ficticios. Antes de conectar casos reales, implementar permisos por cliente/asunto (mínimo necesario), control de acceso al historial, protecciones de correo, revocaciones auditables y una revisión de privacidad. No confundir autorización de colaborador con autorización de cliente.
