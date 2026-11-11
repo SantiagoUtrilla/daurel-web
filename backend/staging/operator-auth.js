@@ -38,7 +38,7 @@ function originOK(request){
 async function emptyPost(request){
  if(request.body===null)return true;
  const length=request.headers.get("Content-Length");
- if(length!==null&&(!/^\\d+$/.test(length)||Number(length)>32))return false;
+ if(length!==null&&(!/^[0-9]+$/.test(length)||Number(length)>32))return false;
  const reader=request.body.getReader();
  const chunks=[];
  let size=0;
