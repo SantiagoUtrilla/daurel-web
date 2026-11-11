@@ -72,6 +72,7 @@ function providerCapture(){
   assert.equal(url,"https://api.resend.com/emails");
   const payload=JSON.parse(init.body);
   assert.deepEqual(payload.to,[ADMIN_EMAIL]);
+  assert.equal(payload.subject,"Código administrativo de DAUREL V2");
   code=/Tu código temporal es: (\d{6})/.exec(payload.text)?.[1];
   assert.match(code,/^\d{6}$/);
   return {ok:true};
