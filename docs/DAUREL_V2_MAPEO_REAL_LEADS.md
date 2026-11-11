@@ -60,3 +60,11 @@ Se conserva en `docs/DAUREL_V2_AUDITORIA_AGREGADA_V1.sql`. Solo lee **recuentos*
 ## Próxima implementación
 
 Diseñar almacenamiento de información legada que falta en V2, una importación idempotente con transacciones y una comparación reproducible de conteos, **solo con filas sintéticas**. Más adelante decidir si los expedientes V1 se migrarán o se consultarán transitoriamente mediante un acceso backend controlado. La decisión exige revisar el código real del Worker V1 o su contrato de API y un respaldo autorizado.
+
+## Auditoría agregada realizada y prueba de migración
+
+Recuentos reales (consulta de SOLO LECTURA): total **3**, folios distintos **3**, folios vacíos **0**, aceptación de privacidad sin fecha **0**. Estados observados: `new`, `contacted`. Urgencias: `soon`, `48h`, `no`. Prioridad: `normal`. La consulta no proporciona combinaciones individuales ni cuantías por estado.
+
+La migración `backend/migrations/0005_legacy_lead_details.sql` diseña una tabla adicional que conserva la información histórica operativa no representada en otras tablas V2. **No aplicada a `daurel-staging` ni a `daurel-db`**. El helper `backend/staging/v1-synthetic-import.js` solo se usa en tests con identificadores ficticios y no tiene endpoint HTTP: inserta entidades separadas para cada registro, guarda datos legados, conserva fechas y folio, no genera cuentas ni autorizaciones ni crea actuaciones desde `follow_up_count`, y rechaza reejecuciones alteradas. Un fallo por duplicado revierte toda la transacción.
+
+**Antes de migrar cualquier fila real**, hace falta preparar copia de seguridad, plan de reversión, control de acceso, identificación de versión vigente del aviso de privacidad y ensayo de reconciliación autorizada. El escenario actual es exclusivamente de simulación.
