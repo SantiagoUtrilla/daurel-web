@@ -1,5 +1,10 @@
 import { demoPageResponse } from "./demo-page.js";
 import {operatorPageResponse} from "./operator-page.js";
+import {
+ operatorSchemaReady,operatorEnrolled,operatorIdentity,operatorStatus,
+ operatorStart,operatorVerify,operatorLogout,roleAllows,auditOperatorOperation,
+} from "./operator-auth.js";
+import {operatorCreate,operatorHistory} from "./operator-extras.js";
 import {listFollowups,createFollowup,changeFollowup} from "./followup-api.js";
 import {previewDailyAlerts,sendDailyAlerts} from "./daily-alerts.js";
 import {telegramConnectionStatus,testTelegramConnection,discoverTelegramChat} from "./telegram-setup.js";
@@ -28,6 +33,9 @@ import {
   authorizeDemo, createDemoRequest, listDemoClientRequests, getDemoAdminOverview, json,
 } from "./demo-api.js";
 
+const OPTIONAL_OPERATOR_TABLES=[
+  "operator_memberships","operator_login_challenges","operator_sessions","operator_access_audit",
+];
 const OPTIONAL_FOLLOWUP_TABLES = ["followup_tasks"];
 
 const OPTIONAL_INVITATION_TABLES = [
@@ -60,6 +68,7 @@ async function health(env) {
     const missingAccountTables = OPTIONAL_ACCOUNT_TABLES.filter((table) => !present.has(table));
     const missingInvitationTables = OPTIONAL_INVITATION_TABLES.filter((table) => !present.has(table));
     const missingFollowupTables = OPTIONAL_FOLLOWUP_TABLES.filter((table) => !present.has(table));
+    const missingOperatorTables = OPTIONAL_OPERATOR_TABLES.filter(table=>!present.has(table));
     return json({
       service: "DAUREL V2 staging",
       status: missingTables.length ? "schema_incomplete" : "online",
@@ -88,6 +97,11 @@ async function health(env) {
         expected_tables: OPTIONAL_FOLLOWUP_TABLES.length,
         found_tables: OPTIONAL_FOLLOWUP_TABLES.length - missingFollowupTables.length,
         missing_tables: missingFollowupTables,
+      },
+      optional_operator_schema:{
+        ready:missingOperatorTables.length===0,
+        expected_tables:OPTIONAL_OPERATOR_TABLES.length,
+        missing_tables:missingOperatorTables,
       },
     }, missingTables.length ? 503 : 200);
   } catch {
@@ -136,6 +150,21 @@ export default {
       return demoPageResponse();
     }
 
+    // La sesión administrativa nunca equivale a una sesión de cliente.
+    const authPaths={
+      "/v2/operator/auth/status":["GET",operatorStatus],
+      "/v2/operator/auth/setup/start":["POST",operatorStart],
+      "/v2/operator/auth/start":["POST",operatorStart],
+      "/v2/operator/auth/verify":["POST",operatorVerify],
+      "/v2/operator/auth/logout":["POST",operatorLogout],
+    };
+    const adminAuth=authPaths[url.pathname];
+    if(adminAuth){
+      if(request.method!==adminAuth[0])return json({success:false,message:"Método no permitido."},405);
+      try{return await adminAuth[1](request,env)}
+      catch{return json({success:false,message:"Acceso administrativo no disponible."},503)}
+    }
+
     if(request.method==="GET" && url.pathname==="/v2/operator"){
       return operatorPageResponse();
     }
@@ -171,6 +200,10 @@ export default {
     const isFollowupCancel=request.method==="POST" && url.pathname==="/v2/operator/api/followups/cancel";
     const isOperatorActions=request.method==="GET" && url.pathname==="/v2/operator/api/actions";
     const isOperatorRecord=request.method==="POST" && url.pathname==="/v2/operator/api/record";
+    const isOperatorCreate=request.method==="POST" && url.pathname==="/v2/operator/api/create";
+    const operatorHistoryMatch=request.method==="GET"
+      ? /^\/v2\/operator\/api\/history\/([0-9a-f-]{36})$/i.exec(url.pathname)
+      : null;
     const isOperatorQueue=request.method==="GET" && url.pathname==="/v2/operator/api/queue";
     const isOperatorStatus=request.method==="POST" && url.pathname==="/v2/operator/api/status";
     const isOperatorInvite=request.method==="POST" && url.pathname==="/v2/operator/api/invite";
@@ -197,19 +230,33 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover && !isOperatorCreate && !operatorHistoryMatch) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
-    const auth = await authorizeDemo(request, env.STAGING_TEST_TOKEN);
-    if (auth === "not_configured") {
-      return json({ success: false, message: "API de pruebas deshabilitada: falta configurar Secret." }, 503);
-    }
-    if (auth !== "authorized") {
-      return json({ success: false, message: "Acceso no autorizado." }, 401);
+    const isOperatorApi=url.pathname.startsWith("/v2/operator/api/");
+    let operatorActor=null;
+    // Hasta la primera activación sigue disponible el laboratorio antiguo.
+    // Una vez concedido un rol, no se puede usar la clave técnica para operar.
+    const operatorReady=isOperatorApi&&await operatorSchemaReady(env);
+    const enrolled=operatorReady&&await operatorEnrolled(env);
+    if(isOperatorApi&&enrolled){
+      operatorActor=await operatorIdentity(request,env);
+      if(!operatorActor)return json({success:false,message:"Inicia sesión como administrador."},401);
+      if(!roleAllows(operatorActor.role,url.pathname,request.method))
+        return json({success:false,message:"Tu rol no permite esta operación."},403);
+      if(request.method==="POST"&&request.headers.get("Origin")!==url.origin)
+        return json({success:false,message:"Origen no permitido."},403);
+    }else{
+      const auth=await authorizeDemo(request,env.STAGING_TEST_TOKEN);
+      if(auth==="not_configured")
+        return json({success:false,message:"API de pruebas deshabilitada: falta configurar Secret."},503);
+      if(auth!=="authorized")
+        return json({success:false,message:"Acceso no autorizado."},401);
     }
 
     try {
+      const dispatch=async()=>{
       if(isTelegramStatus)return await telegramConnectionStatus(env);
       if(isTelegramTest)return await testTelegramConnection(request,env);
       if(isTelegramDiscover)return await discoverTelegramChat(request,env);
@@ -221,6 +268,8 @@ export default {
       if(isOperatorActions)return operatorActionCatalog();
       if(isOperatorRecord)return await operatorRecordAction(request,env);
       if(isOperatorQueue)return await operatorQueue(env);
+      if(isOperatorCreate)return await operatorCreate(request,env);
+      if(operatorHistoryMatch)return await operatorHistory(env,operatorHistoryMatch[1]);
       if(isOperatorStatus)return await operatorUpdateStatus(request,env);
       if(isOperatorInvite)return await operatorSendInvitation(request,env);
       if(isInviteIssue)return await issuePilotInvite(request,env);
@@ -239,6 +288,11 @@ export default {
       if (isDemoCreate) return await createDemoRequest(request, env);
       if (isAdminOverview) return await getDemoAdminOverview(env);
       return await listDemoClientRequests(decodeURIComponent(clientMatch[1]), env);
+      };
+      const outcome=await dispatch();
+      if(operatorActor&&request.method==="POST"&&outcome.ok)
+        await auditOperatorOperation(env,operatorActor,request.method,url.pathname);
+      return outcome;
     } catch {
       console.error("DAUREL staging demo API error");
       return json({ success: false, message: "Error interno de prueba; no reintentes con una clave de idempotencia diferente." }, 500);
