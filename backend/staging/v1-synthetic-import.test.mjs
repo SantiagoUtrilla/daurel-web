@@ -73,6 +73,7 @@ test("Tres expedientes ficticios: conserva folios, estados, fechas y urgencia 48
   assert.equal(r.ok,true);
   assert.equal(r.imported,true);
   assert.equal(r.public_folio,row.request_id);
+  if(row.urgency==="48h")assert.ok(r.flags.includes("urgencia_48h_no_coincide_prioridad_alta"));
  }
  assert.equal(count(sqlite,"parties"),3);
  assert.equal(count(sqlite,"service_requests"),3);
