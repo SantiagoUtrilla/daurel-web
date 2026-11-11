@@ -387,6 +387,8 @@ export function roleAllows(role,path,method){
  if(path==="/v2/operator/api/audit")return role==="owner"&&method==="GET";
  if(path.startsWith("/v2/operator/api/team/"))
   return role==="owner"&&(method==="GET"||method==="POST");
+ if(path.startsWith("/v2/operator/api/assignments/"))
+  return role==="owner"&&(method==="GET"||method==="POST");
  if(role==="owner")return true;
  const readOnly=method==="GET" && [
   "/v2/operator/api/queue","/v2/operator/api/actions",
@@ -395,8 +397,14 @@ export function roleAllows(role,path,method){
  if(role==="reader")return readOnly||method==="GET"&&
   /^\/v2\/operator\/api\/history\/[0-9a-f-]{36}$/i.test(path);
  if(role==="manager"){
-  if(path.startsWith("/v2/operator/api/telegram/"))return false;
-  return true;
+  if(readOnly||method==="GET"&&
+     /^\/v2\/operator\/api\/history\/[0-9a-f-]{36}$/i.test(path))return true;
+  return method==="POST"&&[
+   "/v2/operator/api/status","/v2/operator/api/record",
+   "/v2/operator/api/followups/create",
+   "/v2/operator/api/followups/complete",
+   "/v2/operator/api/followups/cancel",
+  ].includes(path);
  }
  return false;
 }
