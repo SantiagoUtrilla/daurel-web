@@ -306,6 +306,8 @@ export async function operatorLogout(request,env,now=Date.now()){
   200,{"Set-Cookie":sessionCookie("",0)});
 }
 export function roleAllows(role,path,method){
+ // La bitácora de acciones de terceros está reservada para propietario.
+ if(path==="/v2/operator/api/audit")return role==="owner"&&method==="GET";
  if(role==="owner")return true;
  const readOnly=method==="GET" && [
   "/v2/operator/api/queue","/v2/operator/api/actions",
