@@ -381,3 +381,53 @@ test("Protección CSRF: Referer de mismo origen solo se acepta con Sec-Fetch-Sit
  });
  assert.equal(attack.status,403);
 });
+
+
+test("Regresión Cloudflare: Content-Length 2 real en POST '{}' permite alta de administrador",async()=>{
+ const f=fixture(),now=Date.now(),mail=providerCapture();
+ const request=new Request(ORIGIN+"/v2/operator/auth/setup/start",{
+  method:"POST",
+  headers:{
+   Origin:ORIGIN,
+   "Sec-Fetch-Site":"same-origin",
+   Referer:ORIGIN+"/v2/operator?utm_source=chatgpt.com",
+   Authorization:"Bearer "+TECH,
+   "Content-Type":"application/json",
+   "Content-Length":"2",
+  },
+  body:"{}",
+ });
+ assert.equal(request.headers.get("Content-Length"),"2");
+ const started=await operatorStart(request,f.env,mail.transport,now);
+ assert.equal(started.status,202,await started.clone().text());
+ const challenge=(await started.json()).challenge_id;
+ assert.match(mail.code,/^\d{6}$/);
+ const verified=await operatorVerify(make("/v2/operator/auth/verify","POST",{
+  challenge_id:challenge,code:mail.code,
+ },tech()),f.env,now+200);
+ assert.equal(verified.status,200);
+ assert.match(verified.headers.get("Set-Cookie"),/__Host-daurel_v2_operator=/);
+});
+
+test("Content-Length validado como número: rechaza tamaños manipulados o excesivos",async()=>{
+ const f=fixture(),now=Date.now();
+ const attack=async length=>operatorStart(new Request(ORIGIN+"/v2/operator/auth/setup/start",{
+  method:"POST",
+  headers:{
+   Origin:ORIGIN,Authorization:"Bearer "+TECH,
+   "Content-Type":"application/json","Content-Length":length,
+  },body:"{}",
+ }),f.env,async()=>{throw Error("No debe enviar");},now);
+ for(const len of ["2x","-1","99","1e4"," 2"]){
+  const answer=await attack(len);
+  assert.equal(answer.status,400,len);
+  assert.match((await answer.json()).message,/Formato/);
+ }
+ const valid=await operatorStart(new Request(ORIGIN+"/v2/operator/auth/setup/start",{
+  method:"POST",headers:{
+   Origin:ORIGIN,Authorization:"Bearer "+TECH,"Content-Type":"application/json",
+   "Content-Length":"2",
+  },body:"{}",
+ }),f.env,providerCapture().transport,now);
+ assert.equal(valid.status,202);
+});
