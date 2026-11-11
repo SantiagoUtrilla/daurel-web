@@ -2,7 +2,7 @@ import { demoPageResponse } from "./demo-page.js";
 import {operatorPageResponse} from "./operator-page.js";
 import {listFollowups,createFollowup,changeFollowup} from "./followup-api.js";
 import {previewDailyAlerts,sendDailyAlerts} from "./daily-alerts.js";
-import {telegramConnectionStatus,testTelegramConnection} from "./telegram-setup.js";
+import {telegramConnectionStatus,testTelegramConnection,discoverTelegramChat} from "./telegram-setup.js";
 import {operatorActionCatalog,operatorRecordAction} from "./operator-actions.js";
 import {operatorQueue,operatorUpdateStatus,operatorSendInvitation} from "./operator-api.js";
 import { adminPageResponse } from "./admin-page.js";
@@ -163,6 +163,7 @@ export default {
     }
     const isTelegramStatus=request.method==="GET" && url.pathname==="/v2/operator/api/telegram/status";
     const isTelegramTest=request.method==="POST" && url.pathname==="/v2/operator/api/telegram/test";
+    const isTelegramDiscover=request.method==="POST" && url.pathname==="/v2/operator/api/telegram/discover";
     const isAlertPreview=request.method==="GET" && url.pathname==="/v2/operator/api/alerts/preview";
     const isFollowupList=request.method==="GET" && url.pathname==="/v2/operator/api/followups";
     const isFollowupCreate=request.method==="POST" && url.pathname==="/v2/operator/api/followups/create";
@@ -196,7 +197,7 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -211,6 +212,7 @@ export default {
     try {
       if(isTelegramStatus)return await telegramConnectionStatus(env);
       if(isTelegramTest)return await testTelegramConnection(request,env);
+      if(isTelegramDiscover)return await discoverTelegramChat(request,env);
       if(isAlertPreview)return await previewDailyAlerts(env);
       if(isFollowupList)return await listFollowups(env);
       if(isFollowupCreate)return await createFollowup(request,env);
