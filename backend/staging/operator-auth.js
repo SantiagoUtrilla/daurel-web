@@ -5,6 +5,7 @@
 import {json,authorizeDemo} from "./demo-api.js";
 import {newOtp,otpHmac,timingSafeHexEqual,newSessionToken,tokenHash,normalizeEmail} from "./auth-core.js";
 import {sendLoginCode} from "./email-provider.js";
+import {teamSchemaReady} from "./operator-team.js";
 
 const OWNER="daurelcontact@gmail.com";
 const COOKIE="__Host-daurel_v2_operator";
@@ -100,6 +101,14 @@ export async function operatorIdentity(request,env,now=Date.now()){
  const raw=requestToken(request);
  if(!raw)return null;
  const hash=await tokenHash(raw);
+ const teamReady=await teamSchemaReady(env);
+ // El propietario funciona incluso antes de instalar 0007.
+ // Un colaborador solo utiliza correos previamente autorizados.
+ const approved=teamReady
+  ? "AND ((m.role='owner' AND ae.email_normalized='daurelcontact@gmail.com') "+
+    "OR (m.role<>'owner' AND EXISTS(SELECT 1 FROM operator_approved_emails p "+
+    "WHERE p.account_id=a.account_id AND p.email_normalized=ae.email_normalized)))"
+  : "AND m.role='owner' AND ae.email_normalized='daurelcontact@gmail.com'";
  const row=await env.DB.prepare([
   "SELECT s.session_id,s.account_id,m.role,ae.email_normalized",
   "FROM operator_sessions s",
@@ -109,8 +118,7 @@ export async function operatorIdentity(request,env,now=Date.now()){
   "WHERE s.token_sha256=? AND s.revoked_at IS NULL",
   "AND s.expires_at>? AND a.status='active'",
   "AND m.status='active' AND m.revoked_at IS NULL",
-  "AND ae.verified_at IS NOT NULL",
-  "AND (m.role<>'owner' OR ae.email_normalized='daurelcontact@gmail.com') LIMIT 1",
+  "AND ae.verified_at IS NOT NULL",approved,"LIMIT 1",
  ].join(" ")).bind(hash,new Date(now).toISOString()).first();
  return row||null;
 }
@@ -186,7 +194,8 @@ export async function operatorStart(request,env,transport=fetch,now=Date.now()){
  }else if(!enrolled){
   return answer({success:false,message:"Primero activa al administrador con clave técnica."},409);
  }else{
-  const eligible=await operatorByEmail(env,email);
+  const eligible=email===OWNER
+   ?await operatorByEmail(env,email):await operatorApprovedByEmail(env,email);
   if(!eligible)return answer({success:false,message:"Este correo no está autorizado para operar DAUREL."},403);
  }
  if(!await reserveOTP(env,now,email))
@@ -224,6 +233,17 @@ async function operatorByEmail(env,email){
   "WHERE ae.email_normalized=? AND a.status='active'",
   "AND m.status='active' AND m.revoked_at IS NULL",
   "AND (m.role<>'owner' OR ae.email_normalized='daurelcontact@gmail.com') LIMIT 1",
+ ].join(" ")).bind(email).first();
+}
+async function operatorApprovedByEmail(env,email){
+ if(!await teamSchemaReady(env))return null;
+ return env.DB.prepare([
+  "SELECT a.account_id,m.role FROM operator_approved_emails a",
+  "JOIN operator_memberships m ON m.account_id=a.account_id",
+  "JOIN accounts ac ON ac.account_id=a.account_id",
+  "WHERE a.email_normalized=? AND m.status='active'",
+  "AND m.role IN ('reader','manager')",
+  "AND m.revoked_at IS NULL AND ac.status='active' LIMIT 1",
  ].join(" ")).bind(email).first();
 }
 async function createOwner(env){
@@ -294,7 +314,30 @@ export async function operatorVerify(request,env,now=Date.now()){
    return answer({success:false,message:"No se pudo activar al administrador. Revisa la cuenta de pruebas."},409);
   }
  }else{
-  actor=await operatorByEmail(env,check.email_normalized);
+  if(check.email_normalized===OWNER){
+   actor=await operatorByEmail(env,check.email_normalized);
+  }else{
+   actor=await operatorApprovedByEmail(env,check.email_normalized);
+   if(actor){
+    // Vincular correo a su cuenta solo AHORA, tras demostrar posesión del OTP.
+    // verified_at es NOT NULL: nunca insertar un "correo pendiente" falso.
+    const prior=await env.DB.prepare(
+     "SELECT account_id FROM account_emails WHERE email_normalized=? LIMIT 1"
+    ).bind(check.email_normalized).first();
+    if(prior&&prior.account_id!==actor.account_id)
+     return answer({success:false,message:"Correo vinculado a otra cuenta. Requiere revisión."},409);
+    if(!prior){
+     try{
+      await env.DB.prepare([
+       "INSERT INTO account_emails(email_id,account_id,email_normalized,verified_at)",
+       "VALUES (?,?,?,CURRENT_TIMESTAMP)",
+      ].join(" ")).bind(crypto.randomUUID(),actor.account_id,check.email_normalized).run();
+     }catch{
+      return answer({success:false,message:"No se pudo verificar el correo. Solicita un nuevo código."},409);
+     }
+    }
+   }
+  }
   if(!actor)return answer({success:false,message:"La cuenta no tiene permisos administrativos."},403);
  }
  // El email se considera verificado solamente DESPUÉS de probar el OTP.
