@@ -5,6 +5,7 @@ import {DatabaseSync} from "node:sqlite";
 import {readFileSync} from "node:fs";
 import {operatorQueue,operatorUpdateStatus,operatorSendInvitation} from "./operator-api.js";
 import {operatorActionCatalog,operatorRecordAction} from "./operator-actions.js";
+import {listFollowups,createFollowup,changeFollowup} from "./followup-api.js";
 import {newSessionToken,tokenHash} from "./auth-core.js";
 import worker from "./worker.js";
 
@@ -23,7 +24,7 @@ function prep(sqlite,sql,args=[]){
 async function fixture(){
  const sqlite=new DatabaseSync(":memory:");
  sqlite.exec("PRAGMA foreign_keys=ON");
- for(const name of ["0001_v2_core.sql","0002_optional_accounts.sql","0003_case_invitations.sql"]){
+ for(const name of ["0001_v2_core.sql","0002_optional_accounts.sql","0003_case_invitations.sql","0004_followup_tasks.sql"]){
   sqlite.exec(readFileSync(new URL("../migrations/"+name,import.meta.url),"utf8"));
  }
  const db={prepare:sql=>prep(sqlite,sql),batch:async stmts=>{
@@ -255,4 +256,108 @@ test("Actuaciones: cita y envío de correo no alteran estado; expediente cerrado
  assert.equal((await post("documents_reviewed","closed","act-review-0005")).status,409);
  assert.equal((await post("followup_done","closed","act-followup-0006")).status,201);
  assert.equal(f.sqlite.prepare("SELECT status FROM service_requests WHERE request_id=?").get(id).status,"closed");
+});
+
+
+test("Agenda: crea pendientes sin cuenta, calcula semáforo y registra historial",async()=>{
+ const f=await fixture(),id=f.ids[0],path="/v2/operator/api/followups/create";
+ const initial=await (await listFollowups(f.env,NOW)).json();
+ assert.equal(initial.count,0);
+ const addDays=(day,n)=>new Date(Date.parse(day+"T12:00:00Z")+n*86400000).toISOString().slice(0,10);
+ const today=initial.today,soon=addDays(today,2),future=addDays(today,6);
+ const dueBody=(code,date)=>({request_id:id,action_code:code,due_date:date});
+ async function create(body,key){
+  return worker.fetch(req(path,"POST",body,{idem:key}),f.env);
+ }
+ const first=await create(dueBody("contact_again",today),"followup-key-0001");
+ assert.equal(first.status,201);
+ const task1=(await first.json()).task_id;
+ const again=await create(dueBody("contact_again",today),"followup-key-0001");
+ assert.equal(again.status,200);
+ assert.equal((await again.json()).replayed,true);
+ assert.equal((await create(dueBody("contact_again",today),"followup-key-0002")).status,409);
+ assert.equal((await create(dueBody("review_documents",soon),"followup-key-0003")).status,201);
+ assert.equal((await create(dueBody("check_deadline",future),"followup-key-0004")).status,201);
+ const listed=await (await listFollowups(f.env,NOW)).json();
+ assert.equal(listed.count,3);
+ assert.equal(listed.summary.overdue,0);
+ assert.equal(listed.summary.soon,2);
+ assert.equal(listed.summary.planned,1);
+ assert.equal(listed.tasks[0].task_id,task1);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM followup_tasks").get().n,3);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM request_events WHERE event_type='followup_scheduled'").get().n,3);
+ const past=addDays(today,-1),pastId="followup-"+"f".repeat(64);
+ f.sqlite.prepare("INSERT INTO followup_tasks(task_id,request_id,action_code,due_date) VALUES (?,?,?,?)")
+  .run(pastId,id,"update_client",past);
+ const withPast=await (await listFollowups(f.env,NOW)).json();
+ assert.equal(withPast.summary.overdue,1);
+ assert.equal(withPast.tasks[0].signal,"red");
+ const countOther=f.sqlite.prepare("SELECT COUNT(*) n FROM request_events WHERE request_id=?").get(f.ids[1]).n;
+ assert.equal(countOther,0);
+});
+
+test("Agenda: completar, cancelar, replay y aislar expedientes",async()=>{
+ const f=await fixture(),id=f.ids[1];
+ const initial=await (await listFollowups(f.env,NOW)).json();
+ const due=initial.today;
+ const created=await createFollowup(req("/v2/operator/api/followups/create","POST",
+  {request_id:id,action_code:"followup_authority",due_date:due},
+  {idem:"task-complete-001"}),f.env,NOW);
+ assert.equal(created.status,201);
+ const task=(await created.json()).task_id;
+ const doneBody={task_id:task,confirm:"confirmar-pendiente"};
+ const complete=await worker.fetch(req("/v2/operator/api/followups/complete","POST",doneBody),f.env);
+ assert.equal(complete.status,200);
+ assert.equal((await complete.json()).status,"completed");
+ const again=await worker.fetch(req("/v2/operator/api/followups/complete","POST",doneBody),f.env);
+ assert.equal(again.status,200);
+ assert.equal((await again.json()).replayed,true);
+ const cancel=await worker.fetch(req("/v2/operator/api/followups/cancel","POST",
+  {task_id:task,confirm:"cancelar-pendiente"}),f.env);
+ assert.equal(cancel.status,409);
+ assert.equal((await (await listFollowups(f.env,NOW)).json()).count,0);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM request_events WHERE event_type='followup_completed'").get().n,1);
+ const due2=new Date(Date.parse(due+"T12:00:00Z")+86400000).toISOString().slice(0,10);
+ const another=await createFollowup(req("/v2/operator/api/followups/create","POST",
+  {request_id:id,action_code:"request_documents",due_date:due2},
+  {idem:"task-cancel-0001"}),f.env,NOW);
+ assert.equal(another.status,201);
+ const task2=(await another.json()).task_id;
+ const canceled=await worker.fetch(req("/v2/operator/api/followups/cancel","POST",
+  {task_id:task2,confirm:"cancelar-pendiente"}),f.env);
+ assert.equal(canceled.status,200);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM request_events WHERE event_type='followup_cancelled'").get().n,1);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM followup_tasks WHERE status='completed'").get().n,1);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM followup_tasks WHERE status='cancelled'").get().n,1);
+ assert.equal(f.sqlite.prepare("SELECT status FROM service_requests WHERE request_id=?").get(id).status,"new");
+});
+
+test("Agenda: solo operador y casos ficticios, no clientes ni producción",async()=>{
+ const f=await fixture(),id=f.ids[0],path="/v2/operator/api/followups/create";
+ const date=(await (await listFollowups(f.env,NOW)).json()).today;
+ const data={request_id:id,action_code:"contact_again",due_date:date};
+ assert.equal((await worker.fetch(req("/v2/operator/api/followups","GET",undefined,{tech:false,cookie:f.cookie}),f.env)).status,401);
+ assert.equal((await worker.fetch(req(path,"POST",data,{tech:false,cookie:f.cookie,idem:"test-no-auth-1"}),f.env)).status,401);
+ assert.equal((await worker.fetch(req(path,"POST",data,{badToken:true,idem:"test-bad-key-1"}),f.env)).status,401);
+ assert.equal((await worker.fetch(req(path,"POST",data,{idem:"test-nonprod-1"}),{...f.env,ENVIRONMENT:"production"})).status,403);
+ assert.equal((await createFollowup(req(path,"POST",data,{origin:"https://other.invalid",idem:"test-origin-1"}),f.env,NOW)).status,403);
+ assert.equal((await createFollowup(req(path,"POST",{...data,action_code:"inventado"},{idem:"test-action-1"}),f.env,NOW)).status,400);
+ assert.equal((await createFollowup(req(path,"POST",{...data,due_date:"2026-02-30"},{idem:"test-date-001"}),f.env,NOW)).status,400);
+ assert.equal((await createFollowup(req(path,"POST",{...data,request_id:"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"},{idem:"test-missing1"}),f.env,NOW)).status,404);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM followup_tasks").get().n,0);
+ f.sqlite.exec("DROP TABLE followup_tasks");
+ const unavailable=await listFollowups(f.env,NOW);
+ assert.equal(unavailable.status,503);
+ assert.match((await unavailable.json()).message,/0004_followup_tasks\.sql/);
+});
+
+test("Panel operador contiene agenda móvil y semáforo y puede cargar sin tabla 0004",async()=>{
+ const f=await fixture();
+ const html=await (await worker.fetch(req("/v2/operator"),f.env)).text();
+ assert.match(html,/Agenda de próximos pasos/);
+ assert.match(html,/id="a-red"/);
+ assert.match(html,/Programar pendiente/);
+ assert.match(html,/visibilitychange/);
+ assert.match(html,/loadFollowups/);
+ assert.ok(!html.includes("daurel-db"));
 });
