@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {DatabaseSync} from "node:sqlite";
+import vm from "node:vm";
 import {readFileSync} from "node:fs";
 import worker from "./worker.js";
 import {
@@ -245,4 +246,21 @@ test("Contexto de seguridad: sin permiso administrativo en entornos ajenos a sta
   async()=>{throw Error("no mail")},Date.now())).status,503);
  assert.equal((await worker.fetch(make("/v2/operator/api/queue","GET",undefined,tech()),wrongEnv)).status,403);
  assert.equal((await worker.fetch(make("/v2/operator/api/queue","GET",undefined,tech()),f.env)).status,200);
+});
+
+
+test("Pantalla administrativa compilable: los scripts integrados no tienen errores de sintaxis",async()=>{
+ const f=fixture();
+ const response=await worker.fetch(make("/v2/operator"),f.env);
+ assert.equal(response.status,200);
+ const html=await response.text();
+ const match=/<script>([\s\S]*?)<\/script>/.exec(html);
+ assert.ok(match,"script del panel");
+ assert.doesNotThrow(()=>new vm.Script(match[1],{filename:"daurel-v2-operator-ui.js"}));
+ assert.match(html,/id="admin-access"/);
+ assert.match(html,/id="admin-setup-send"/);
+ assert.match(html,/id="admin-verify"/);
+ assert.match(html,/id="admin-logout"/);
+ assert.match(html,/\/v2\/operator\/api\/create/);
+ assert.match(html,/\/v2\/operator\/api\/history\//);
 });
