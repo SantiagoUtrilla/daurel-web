@@ -130,6 +130,7 @@ export async function operatorUpdateStatus(request,env){
    "SELECT ?,sr.request_id,'status_changed',?",
    "FROM service_requests sr WHERE sr.request_id=?",
    "AND sr.intake_channel='staging_demo' AND sr.status=?",
+   "AND changes()=1",
   ].join(" ")).bind(eventId,summary,id,next),
  ];
  const result=await env.DB.batch(statements);
