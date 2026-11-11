@@ -4,6 +4,8 @@
   "main": "./staging/worker.js",
   "compatibility_date": "2026-10-24",
   "workers_dev": true,
+  // Un disparador diario, sin mensajes hasta activar secretos opt-in.
+  "triggers": { "crons": ["0 15 * * *"] },
   "vars": {
     "ENVIRONMENT": "staging",
     "AUTH_EMAIL_FROM": "acceso@daurel.com.mx"
