@@ -211,3 +211,19 @@ Las pruebas automáticas usan un transporte Telegram simulado (nunca envían men
 **Costo:** diseño para operar en Cloudflare Workers + D1 + Telegram Bot API sin contratar un servicio nuevo, sujeto a los límites vigentes de las capas gratuitas. Si un recurso superara el límite de su plan, detener o reconfigurar el envío en lugar de incurrir en gastos.
 
 **Chequeo de seguridad:** en la vista previa debe aparecer `delivery_enabled: false` mientras no haya consentimiento/secretos. El portal público `daurel.com.mx` y `daurel-db` permanecen independientes.
+
+## 14. Conexión Telegram V2, sin alterar el bot de DAUREL V1
+
+**Importante:** DAUREL V1 ya usa Telegram. Sus secretos residen en el Worker de **producción** `daurel-backend` y no deben tocarse, recuperarse por rotación de token ni copiarse a GitHub. Si no se dispone de una copia segura del token vigente, crear mediante **@BotFather** un bot nuevo exclusivamente para staging (gratis). **No ejecutar /revoke ni regenerar el token del bot V1**, pues podría interrumpir alertas reales.
+
+### Configuración segura, solo daurel-backend-staging
+1. En Telegram → @BotFather → `/newbot`, crear `DAUREL V2 Pruebas`, con username libre terminado en `bot`; guardar el token que devuelve **en Cloudflare Worker staging → Settings → Variables and Secrets**, Tipo **Secret** y nombre `DAUREL_V2_TELEGRAM_BOT_TOKEN`. No pegarlo en la conversación.
+2. Abrir el nuevo bot desde Telegram y pulsar **Iniciar**.
+3. Abrir `/v2/operator` con clave técnica. En «Recordatorios en Telegram», pulsar **Generar frase de vinculación** y enviar esa frase **como mensaje privado al bot**. Luego pulsar **Detectar mi chat**.
+4. Copiar el número mostrado (no es el token) y guardarlo en `daurel-backend-staging` como Secret `DAUREL_V2_TELEGRAM_CHAT_ID`.
+5. Volver a `/v2/operator`, pulsar **Comprobar conexión**, después **Enviar mensaje de prueba**. Se enviará a Telegram **solo por el clic y con confirmación de usuario**; hay un límite de 1 intento por minuto. El mensaje no contiene folios reales.
+6. Mantener `DAUREL_V2_ALERTS_ENABLED` sin definir o en falso. **No activar el Cron de envíos automáticos** hasta confirmar que llega el mensaje de prueba al chat correcto.
+
+`POST /v2/operator/api/telegram/discover` solo funciona con `STAGING_TEST_TOKEN` válido, `Origin` del mismo Worker, y exige una frase aleatoria exacta escrita en un chat privado durante la hora anterior. El token se usa **desde el servidor**, sin exponerlo en navegador ni red de terceros. `POST /v2/operator/api/telegram/test` requiere clic explícito, configuración lista y límite 1/minuto. `GET /v2/operator/api/telegram/status` muestra solo banderas booleanas, nunca secretos.
+
+Cloudflare aplica el Cron definido en `wrangler.staging.jsonc`; el handler `scheduled()` respeta `DAUREL_V2_ALERTS_ENABLED` y la configuración del Worker de staging. Mantener `ENVIRONMENT=staging` y `DB=daurel-staging`. No hay cambios en `main`.
