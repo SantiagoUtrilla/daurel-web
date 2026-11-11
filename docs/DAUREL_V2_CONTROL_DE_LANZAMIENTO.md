@@ -11,7 +11,7 @@ Actualizado: 11 de noviembre de 2026. Rama de desarrollo: `architecture/daurel-v
 - [x] Centro de operaciones en navegador y celular con estados, actuaciones, historial, pendientes y semáforo.
 - [x] Cuentas administrativas separadas de las de clientes: activación de propietario y acceso por OTP; el usuario confirmó entrada, salida y reingreso.
 - [x] Bitácora de acciones confirmadas, visible exclusivamente para el propietario.
-- [x] Código para alta de colaboradores `reader` y `manager`, revocación de sesiones, OTP individual y autorización previa distinta de verificación. **104/104 pruebas GitHub Actions aprobadas en ejecución 43101142950.**
+- [x] Código para alta de colaboradores `reader` y `manager`, revocación de sesiones, OTP individual y autorización previa distinta de verificación. **107/107 pruebas GitHub Actions aprobadas en ejecución 43102749186.**
 - [x] Auditoría estructural de V1 por consultas solo lectura: tabla `leads` con 29 columnas.
 - [x] Auditoría agregada de V1: **3 solicitudes, 3 folios distintos, 0 vacíos, 0 aceptaciones sin fecha**. Valores de estado `new`, `contacted`; urgencia `soon`, `48h`, `no`; prioridad `normal`.
 - [x] Conversor y ensayo de migración V1→V2 con **solo registros ficticios**, transacciones, detección de cambios e idempotencia.
@@ -19,14 +19,14 @@ Actualizado: 11 de noviembre de 2026. Rama de desarrollo: `architecture/daurel-v
 
 ## Activación restante del equipo (solo staging)
 
-- [ ] Ejecutar **una vez** `backend/migrations/0007_operator_approvals.sql` exclusivamente en **daurel-staging**. Crea una tabla y un índice, no toca cuentas existentes ni `daurel-db`.
-- [ ] Verificar `/health` → `optional_team_schema.ready: true`.
+- [ ] Ejecutar **una vez** `backend/migrations/0007_operator_approvals.sql` exclusivamente en **daurel-staging**. Crea dos tablas y dos índices (autorizaciones de correo y expedientes asignados), no toca cuentas existentes ni `daurel-db`.
+- [ ] Verificar `/health` → `optional_team_schema.ready: true` (2 tablas).
 - [ ] Recargar `/v2/operator` y comprobar sección «Administrar colaboradores» con sesión owner.
 - [ ] Probar con **un segundo correo de prueba controlado** antes de invitar a alguien real. Su acceso no debe mostrarse como verificado antes de usar OTP, ni puede ver la bitácora general. Al desactivarlo, su sesión debe perder acceso.
 
 ## Bloqueadores del lanzamiento real (P0)
 
-- [ ] **Privacidad y controles por caso:** rol global no sustituye una autorización por expediente, profesional y finalidad. Diseñar alcance mínimo, tratamiento de datos sensibles, conservación, revocación y bitácora de accesos a contenido.
+- [x] **Autorización por expediente en staging:** lectores y gestores no acceden por rol global; el propietario asigna cada expediente ficticio expresamente. El backend controla bandeja, contadores, agenda, historial y escrituras, además de revocar accesos. **Aún P0 para producción:** validar finalidad y aislamiento por cliente/profesional, protección de datos sensibles, auditoría por contenido, pruebas de penetración y recuperación.
 - [ ] **Backend V1 y respaldo:** revisar el código vigente de `daurel-backend` y su estructura real. Hacer y comprobar respaldo restaurable de `daurel-db`; garantizar que solicitudes recibidas durante el corte no se pierdan.
 - [ ] **Importación privada reversible:** conservar los 29 campos, folio, ID histórico, fechas, consentimiento y datos operativos; no inventar eventos antiguos a partir del contador de seguimientos. Activar `0005_legacy_lead_details.sql` solo cuando el plan esté revisado y el entorno lo requiera. Conciliar conteos 3→3 al momento del respaldo, comprobando cambios desde el último recuento.
 - [ ] **Formulario real:** enlazar la captura existente con V2 sin exigir cuenta, conservar Turnstile y limitación de abuso, revisar validaciones y privacidad. Probar varias solicitudes consecutivas y casos de fallo.
@@ -42,7 +42,7 @@ El laboratorio de pruebas no equivale a la versión productiva. **No hay sincron
 ## Orden de ejecución optimizado
 
 1. Activar y comprobar `0007` en staging (una sola intervención en D1).
-2. Construir autorización *por caso* de colaboradores y reforzar API/portal.
+2. Verificar la autorización *por caso* ya implementada en staging y reforzar seguridad/privacidad del portal real.
 3. Preparar integración real con V1 y respaldo controlado.
 4. Completar pruebas con datos ficticios, interfaz definitiva y contrato de privacidad.
 5. Hacer prueba de corte y reversión.
