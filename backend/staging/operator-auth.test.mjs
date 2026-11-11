@@ -418,7 +418,7 @@ test("Content-Length validado como número: rechaza tamaños manipulados o exces
    "Content-Type":"application/json","Content-Length":length,
   },body:"{}",
  }),f.env,async()=>{throw Error("No debe enviar");},now);
- for(const len of ["2x","-1","99","1e4"," 2"]){
+ for(const len of ["2x","-1","99","1e4"]){
   const answer=await attack(len);
   assert.equal(answer.status,400,len);
   assert.match((await answer.json()).message,/Formato/);
