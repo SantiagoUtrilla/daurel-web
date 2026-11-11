@@ -121,6 +121,11 @@ export async function issuePilotInvite(request,env,transport=fetch,now=Date.now(
    "UPDATE case_invitations SET sent_at=CURRENT_TIMESTAMP WHERE invitation_id=?"
   ).bind(id),
   env.DB.prepare([
+   "UPDATE case_invitations SET revoked_at=CURRENT_TIMESTAMP",
+   "WHERE request_id=? AND intended_email=? AND invitation_id<>?",
+   "AND redeemed_at IS NULL AND revoked_at IS NULL",
+  ].join(" ")).bind(matter.request_id,TEST_EMAIL,id),
+  env.DB.prepare([
    "INSERT INTO case_access_audit(audit_id,request_id,invitation_id,event_type)",
    "VALUES(?,?,?,'invitation_sent')",
   ].join(" ")).bind(crypto.randomUUID(),matter.request_id,id),
