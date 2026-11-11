@@ -227,3 +227,26 @@ Las pruebas automáticas usan un transporte Telegram simulado (nunca envían men
 `POST /v2/operator/api/telegram/discover` solo funciona con `STAGING_TEST_TOKEN` válido, `Origin` del mismo Worker, y exige una frase aleatoria exacta escrita en un chat privado durante la hora anterior. El token se usa **desde el servidor**, sin exponerlo en navegador ni red de terceros. `POST /v2/operator/api/telegram/test` requiere clic explícito, configuración lista y límite 1/minuto. `GET /v2/operator/api/telegram/status` muestra solo banderas booleanas, nunca secretos.
 
 Cloudflare aplica el Cron definido en `wrangler.staging.jsonc`; el handler `scheduled()` respeta `DAUREL_V2_ALERTS_ENABLED` y la configuración del Worker de staging. Mantener `ENVIRONMENT=staging` y `DB=daurel-staging`. No hay cambios en `main`.
+
+## 15. Cuenta y sesión administrativa independiente (0006, staging)
+
+Se diseñó `backend/migrations/0006_operator_identity.sql` para **daurel-staging exclusivamente**. NO ejecutarla sobre `daurel-db`. Las operaciones en la web pública permanecen en V1. El archivo `0005_legacy_lead_details.sql` está reservado para otro ensayo y no hace falta instalarlo para habilitar el operador.
+
+La nueva migración crea **cuatro tablas y cuatro índices**:
+`operator_memberships`, `operator_login_challenges`, `operator_sessions` y `operator_access_audit`. No agrega cuentas automáticamente, no concede acceso al leer emails ni altera `account_party_access` o `account_request_access`.
+
+**Aplicación manual opcional en staging:**
+1. Cloudflare → D1 SQL Database → **daurel-staging** → Studio.
+2. Copiar **íntegro** `backend/migrations/0006_operator_identity.sql`, ejecutar **Run all in sequence**. Validar `/health`: `optional_operator_schema.ready=true`.
+3. Abrir `/v2/operator` con Ctrl+F5. En «Primera activación», escribir la clave técnica de staging SOLO UNA VEZ y solicitar el código. Llegará a `daurelcontact@gmail.com` con asunto «Código administrativo de DAUREL V2». Verificar seis dígitos y abrir el panel.
+4. A partir de entonces, la clave técnica **deja de autorizar rutas de operador** y los futuros accesos utilizan OTP de correo y sesión HttpOnly independiente por hasta cuatro horas.
+5. «Cerrar sesión administrativa» revoca exclusivamente la sesión del operador; nunca concede acceso desde la sesión de cliente. El usuario puede entrar al panel desde el celular con el mismo correo de prueba.
+6. La cuenta owner no se activa por coincidencia de email: requiere **clave de laboratorio y OTP** para el primer alta; solicitudes posteriores solo funcionan para cuentas con membresía `active`.
+7. Antes de instalar 0006 y antes de conceder owner, los endpoints de operador siguen permitiendo el token técnico para no romper pruebas previas. **Después del alta, esa vía se inhabilita** en los endpoints de operador.
+8. No habilitar acceso real de clientes, datos personales ni roles para empleados reales todavía. Faltan 2FA resistente al phishing (p. ej., passkeys), creación/revocación supervisada de operadores adicionales, recuperación segura, revisión de auditoría y privacidad. Este es un **piloto funcional**, NO una autorización de producción.
+
+Rutas del piloto `/v2/operator/auth/{status,setup/start,start,verify,logout}`, y `/v2/operator/api` protegidas por cookie administrativa con rol. `manager` y `reader` están contemplados en autorización, pero la única activación UI actual es `owner` en correo de prueba; no crear gestores ni lectores sin módulo de invitación y autorización explícita.
+
+La sesión administrativa usa cookie `__Host-daurel_v2_operator` independiente de `__Host-daurel_v2_pilot` (cliente). Los códigos están protegidos con HMAC de dominio administrativo y no sirven para iniciar sesión como cliente. Se limita la emisión a un correo por minuto y seis por día. Verificación de diez minutos y hasta cinco intentos. No se guardan códigos ni tokens en GitHub.
+
+El panel ahora utiliza rutas propias `/v2/operator/api/create` y `/v2/operator/api/history/:id` para que el usuario administrador **no necesite la clave técnica para crear solicitudes de prueba o ver el historial**. Los cambios con sesión administrativa se registran en `operator_access_audit` sin copiar datos privados ni el contenido de las solicitudes.
