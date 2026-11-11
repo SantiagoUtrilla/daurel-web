@@ -143,3 +143,26 @@ URL `https://daurel-backend-staging.lmsantiagoutrilla.workers.dev/v2/operator`.
 - El inicio de sesión de operadores reales aún NO está implementado: faltan cuenta nominal, roles, doble factor/seguridad adicional, registros de acciones por operador y controles de privacidad. No confundir el secreto técnico del laboratorio con credenciales definitivas de personal.
 
 **Prueba manual:** abrir `/v2/operator`; ingresar la misma clave técnica del laboratorio; pulsar «Abrir mi panel»; cambiar el estado de una solicitud ficticia; pulsar «Enviar acceso» en un expediente. El correo recibido debe permitir entrar en `/v2/client` y consultar solo el asunto seleccionado. Para ver el historial, pulsar «Ver historial». No usar datos personales reales.
+
+## 11. Actuaciones operativas y seguimiento compartido (solo staging)
+
+La misma base D1 de pruebas alimenta el panel de operador `/v2/operator` y el portal cliente `/v2/client`, que funcionan tanto en computadora como desde el navegador del celular. No hay aplicación nativa ni WhatsApp integrado. Al volver a cualquiera de las pantallas se consulta la información actualizada, sin consultas continuas en segundo plano. El cliente también tiene botón «Actualizar».
+
+El catálogo `GET /v2/operator/api/actions` contiene **16 actuaciones** organizadas:
+- Contacto: WhatsApp intentado, llamada intentada, correo enviado, respuesta recibida, llamada atendida.
+- Atención: cita programada, asesoría realizada.
+- Documentos: documentos solicitados, recibidos, revisados.
+- Seguimiento: seguimiento realizado, asunto canalizado, cliente informado.
+- Gestión: trámite presentado, respuesta institucional recibida.
+- Cierre: servicio concluido y confirmado.
+
+Registro vía `POST /v2/operator/api/record` exige clave técnica y `Origin` correcto, JSON con `request_id`, `expected_status`, `action`, así como `Idempotency-Key`. Escribe un evento de bitácora identificado de forma determinista en `request_events` **sin nueva migración**. El asunto debe ser ficticio (`intake_channel='staging_demo'`). Se rechaza estado obsoleto, acciones no incluidas y operaciones sin autorización.
+
+Cambios automáticos **con estado de origen exacto**:
+- Respuesta de cliente o llamada atendida: `new → contacted`.
+- Asesoría realizada, documentación revisada o trámite presentado: `contacted → in_attention`.
+- Conclusión confirmada: `in_attention → closed`, con confirmación explícita en pantalla.
+
+El intento de escribir por WhatsApp, llamar, enviar un correo, programar una cita o solicitar documentos **no equivale a contacto confirmado** ni cambia por sí solo el estado. Registrar una actuación es una declaración manual del operador; no se importan chats de WhatsApp personal. No registrar supuestos hechos a partir de abrir enlaces o aplicaciones. Los asuntos cerrados o cancelados requieren actuación consciente para reabrirse.
+
+**Costo y canales**: este flujo no contrata ni conecta la API de WhatsApp. Reutiliza la infraestructura ya provisionada dentro de sus límites gratuitos; no garantiza que los proveedores mantengan permanentemente esos límites. En el futuro se evaluará una conexión oficial separada. No modificar `daurel-db` ni `main`.
