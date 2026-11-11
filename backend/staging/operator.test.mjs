@@ -7,6 +7,7 @@ import {operatorQueue,operatorUpdateStatus,operatorSendInvitation} from "./opera
 import {operatorActionCatalog,operatorRecordAction} from "./operator-actions.js";
 import {listFollowups,createFollowup,changeFollowup} from "./followup-api.js";
 import {reminderDigest,previewDailyAlerts,sendDailyAlerts} from "./daily-alerts.js";
+import {telegramConnectionStatus,testTelegramConnection} from "./telegram-setup.js";
 import {newSessionToken,tokenHash} from "./auth-core.js";
 import worker from "./worker.js";
 
@@ -462,4 +463,88 @@ test("Cron: sin configuración opt-in no envía y solo actúa con cron de stagin
  await worker.scheduled({cron:"*/5 * * * *",scheduledTime:NOW},f.env,{});
  await worker.scheduled({cron:"0 15 * * *",scheduledTime:NOW},{...f.env,ENVIRONMENT:"production"},{});
  assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM integration_events WHERE provider='telegram-staging'").get().n,0);
+});
+
+
+test("Telegram: inspección segura de conexión sin exponer secretos ni enviar mensajes",async()=>{
+ const f=await fixture();
+ const unauthorized=await worker.fetch(req("/v2/operator/api/telegram/status","GET",undefined,{tech:false,cookie:f.cookie}),f.env);
+ assert.equal(unauthorized.status,401);
+ const result=await worker.fetch(req("/v2/operator/api/telegram/status"),f.env);
+ assert.equal(result.status,200);
+ const data=await result.json();
+ assert.equal(data.bot_configured,false);
+ assert.equal(data.chat_configured,false);
+ assert.equal(data.daily_alerts_enabled,false);
+ assert.equal(data.test_message_requires_manual_click,true);
+ const html=await (await worker.fetch(req("/v2/operator"),f.env)).text();
+ assert.match(html,/Enviar mensaje de prueba/);
+ assert.match(html,/Comprobar conexión/);
+ assert.ok(!JSON.stringify(data).includes("123456"));
+});
+
+test("Telegram: el botón de prueba requiere configuración, operador y origen correcto",async()=>{
+ const f=await fixture();
+ const path="/v2/operator/api/telegram/test";
+ assert.equal((await worker.fetch(req(path,"POST",undefined,{tech:false,cookie:f.cookie}),f.env)).status,401);
+ assert.equal((await worker.fetch(req(path,"POST",undefined,{badToken:true}),f.env)).status,401);
+ const missing=await worker.fetch(req(path,"POST"),f.env);
+ assert.equal(missing.status,503);
+ const missingResponse=await missing.json();
+ assert.match(missingResponse.message,/DAUREL_V2_TELEGRAM_BOT_TOKEN/);
+ assert.match(missingResponse.message,/DAUREL_V2_TELEGRAM_CHAT_ID/);
+ const env={...f.env,DAUREL_V2_TELEGRAM_CHAT_ID:"123456789",
+  DAUREL_V2_TELEGRAM_BOT_TOKEN:"123456:abcdefghijklmnopqrstuvwxyz123456789"};
+ assert.equal((await testTelegramConnection(req(path,"POST",undefined,{origin:"https://evil.invalid"}),env)).status,403);
+ assert.equal((await testTelegramConnection(req(path,"POST",{value:2}),env)).status,403);
+ assert.equal((await testTelegramConnection(req(path,"POST"),{...env,ENVIRONMENT:"production"})).status,403);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM auth_rate_limits WHERE subject_hash='daurel-v2-staging-telegram-probe'").get().n,0);
+});
+
+test("Telegram: prueba manual envía solo una vez por minuto sin activar alertas diarias",async()=>{
+ const f=await fixture(),path="/v2/operator/api/telegram/test";
+ const env={...f.env,DAUREL_V2_TELEGRAM_CHAT_ID:"123456789",
+  DAUREL_V2_TELEGRAM_BOT_TOKEN:"123456:abcdefghijklmnopqrstuvwxyz123456789"};
+ const status=await (await telegramConnectionStatus(env)).json();
+ assert.equal(status.bot_configured,true);
+ assert.equal(status.chat_configured,true);
+ assert.equal(status.daily_alerts_enabled,false);
+ let sends=0;
+ const transport=async(url,init)=>{
+  sends++;
+  assert.equal(url,"https://api.telegram.org/bot123456:abcdefghijklmnopqrstuvwxyz123456789/sendMessage");
+  const body=JSON.parse(init.body);
+  assert.equal(body.chat_id,"123456789");
+  assert.match(body.text,/Prueba de conexión/);
+  assert.match(body.text,/Todavía no se han activado los recordatorios diarios/);
+  assert.equal(body.text.includes("demo-cliente1"),false);
+  return {ok:true,json:async()=>({ok:true,result:{message_id:77}})};
+ };
+ const now=Date.parse("2026-11-10T18:00:10.000Z");
+ const first=await testTelegramConnection(req(path,"POST"),env,transport,now);
+ assert.equal(first.status,200);
+ assert.equal((await first.json()).sent,true);
+ assert.equal(sends,1);
+ const tooSoon=await testTelegramConnection(req(path,"POST"),env,transport,now+15000);
+ assert.equal(tooSoon.status,429);
+ assert.equal(sends,1);
+ const later=await testTelegramConnection(req(path,"POST"),env,transport,now+61000);
+ assert.equal(later.status,200);
+ assert.equal(sends,2);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM auth_rate_limits WHERE subject_hash='daurel-v2-staging-telegram-probe'").get().n,2);
+});
+
+test("Telegram: error del proveedor no muestra token ni activa cron",async()=>{
+ const f=await fixture();
+ const env={...f.env,DAUREL_V2_TELEGRAM_CHAT_ID:"123456789",
+  DAUREL_V2_TELEGRAM_BOT_TOKEN:"123456:abcdefghijklmnopqrstuvwxyz123456789"};
+ const failing=await testTelegramConnection(req("/v2/operator/api/telegram/test","POST"),env,
+  async()=>({ok:false,json:async()=>({ok:false,description:"sensitive-token-value"})}),
+  Date.parse("2026-11-10T18:30:01.000Z"));
+ assert.equal(failing.status,502);
+ const data=await failing.json();
+ assert.equal(data.success,false);
+ assert.ok(!JSON.stringify(data).includes("123456:"));
+ assert.ok(!JSON.stringify(data).includes("sensitive-token-value"));
+ assert.equal(env.DAUREL_V2_ALERTS_ENABLED,undefined);
 });
