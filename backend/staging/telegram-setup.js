@@ -72,3 +72,54 @@ export async function testTelegramConnection(request,env,transport=fetch,now=Dat
   return respond({success:false,message:"No fue posible confirmar el mensaje. Revisa la configuración de Telegram."},502);
  }
 }
+
+
+// Vinculación privada: quien controla el panel genera una frase aleatoria
+// y la envía a SU bot. Solo se devuelve el chat privado que escribió esa frase.
+// No requiere bots de terceros ni conocer el CHAT_ID de antemano.
+export async function discoverTelegramChat(request,env,transport=fetch,now=Date.now()){
+ if(env.ENVIRONMENT!=="staging")return respond({success:false,message:"Solo staging."},403);
+ if(request.headers.get("Origin")!==new URL(request.url).origin)
+  return respond({success:false,message:"Origen no permitido."},403);
+ if(!(request.headers.get("Content-Type")||"").toLowerCase().startsWith("application/json"))
+  return respond({success:false,message:"Se requiere JSON."},415);
+ if(!configured(env).bot)
+  return respond({success:false,message:"Primero configura DAUREL_V2_TELEGRAM_BOT_TOKEN como Secret en staging."},503);
+ const raw=await request.text();
+ if(raw.length>160)return respond({success:false,message:"Solicitud demasiado grande."},413);
+ let payload;
+ try{payload=JSON.parse(raw)}catch{return respond({success:false,message:"Código inválido."},400)}
+ if(!payload||typeof payload!=="object"||Array.isArray(payload)||
+    Object.keys(payload).join(",")!=="phrase"||
+    typeof payload.phrase!=="string"||!/^DAUREL-[A-Z0-9]{8}$/.test(payload.phrase)){
+  return respond({success:false,message:"Genera el código de vinculación desde el panel."},400);
+ }
+ try{
+  const r=await transport(
+   "https://api.telegram.org/bot"+env.DAUREL_V2_TELEGRAM_BOT_TOKEN+"/getUpdates?limit=100&timeout=0",
+   {method:"GET",headers:{"Accept":"application/json"}},
+  );
+  if(!r.ok)return respond({success:false,message:"Telegram no permitió consultar mensajes. Comprueba que el bot no esté conectado a otro servicio."},502);
+  const j=await r.json();
+  if(j.ok!==true||!Array.isArray(j.result))
+   return respond({success:false,message:"No se pudieron consultar los mensajes del bot."},502);
+  const recent=j.result.filter(update=>{
+   const m=update?.message;
+   return m&&m.chat?.type==="private"&&m.text===payload.phrase&&
+    Number.isSafeInteger(m.chat.id)&&Number.isFinite(m.date)&&
+    (now/1000-m.date)>=-60&&(now/1000-m.date)<=3600;
+  }).sort((a,b)=>b.update_id-a.update_id);
+  const matched=recent[0];
+  if(!matched)return respond({success:false,message:
+   "Aún no encuentro ese mensaje. Abre tu bot en Telegram, pulsa Iniciar y envíale la frase de vinculación que aparece en el panel."},404);
+  const id=String(matched.message.chat.id);
+  if(!/^-?[0-9]{5,20}$/.test(id))
+   return respond({success:false,message:"Identificador de chat no válido."},400);
+  return respond({
+   success:true,chat_id:id,private_chat:true,
+   message:"Chat privado detectado. Copia el número y guárdalo como DAUREL_V2_TELEGRAM_CHAT_ID en los Secrets de staging.",
+  });
+ }catch{
+  return respond({success:false,message:"No se pudo conectar con Telegram. Revisa el token del bot."},502);
+ }
+}
