@@ -107,6 +107,23 @@ Abrir `https://daurel-backend-staging.lmsantiagoutrilla.workers.dev/v2/demo/mail
 
 El endpoint POST `/v2/demo/mail/test` está protegido con el mismo Bearer token del laboratorio y no admite body. Usa `integration_events` de la migración 0001 para permitir **un intento por minuto**, sin necesidad de tablas nuevas. Si Resend rechaza el envío, devuelve error genérico sin exponer el API Key. La prueba usa Idempotency-Key por minuto hacia Resend.
 
-**No aplicar todavía `0002_optional_accounts.sql`:** está diseñada, pero requiere conciliar `0001` con el historial de migraciones de D1 y construir cuidadosamente la autenticación real y sus controles. Ninguna prueba de correo da acceso a expedientes.
+**Estado actualizado (noviembre 2026):** las migraciones `0001`, `0002` y `0003` ya fueron aplicadas MANUALMENTE en `daurel-staging` y validadas por el usuario. Sigue pendiente conciliar `d1_migrations` antes de habilitar migraciones automáticas. No aplicarlas en `daurel-db`. La prueba inicial de envío de Resend no concede acceso a expedientes.
 
 Si Resend responde que el dominio no está permitido, revisar primero el remitente verificado y el ámbito de la API Key antes de cambiar DNS. No eliminar registros MX/SPF ya existentes de Cloudflare.
+
+## 9. Portal unificado de cliente simulado (SIN clave técnica)
+
+URL: `https://daurel-backend-staging.lmsantiagoutrilla.workers.dev/v2/client`.
+
+La experiencia de cliente está separada del laboratorio técnico:
+- La pantalla abre la sesión existente automáticamente; si está activa, enseña solo los asuntos de `account_request_access` que se hayan concedido y no revocado.
+- Si la sesión caducó, muestra **un solo inicio de sesión con un código de seis dígitos**. En la versión de staging, el destinatario es FIJO: `daurelcontact@gmail.com`.
+- Rutas `/v2/client/api/{start,verify,session,logout,cases,accept}`. No exigen `STAGING_TEST_TOKEN`, pero siguen limitadas al Worker `ENVIRONMENT=staging` y **no tienen acceso a datos de producción**.
+- Emisión de código limitada a 1/minuto (límite anterior de OTP compartido) y 6 por día para la prueba de cliente. Solo se acepta POST desde el origen exacto; no se aceptan correos enviados en el cuerpo.
+- Invitaciones emitidas desde el panel TÉCNICO incluyen un enlace con `#invite=...` (fragmento de URL); la vista de cliente lo consume después de verificar el correo y limpia el fragmento inmediatamente del navegador. No requiere copiar el código largo ni concederse acceso por adivinar un folio.
+- No se crean ni vinculan permisos automáticamente por coincidencia de correo. El técnico envía la invitación de un expediente sintético y solo se permite consultar ese expediente al aceptarla.
+- La cuenta para solicitar un servicio sigue siendo opcional. Se conserva intacta la producción en `main` / `daurel.com.mx`.
+- Este piloto NO se debe publicar para clientes reales todavía. Falta Turnstile, correos variables verificados, identidad y representación, controles de bloqueo antiabuso/abuso de invitaciones, sesiones por roles, avisos de privacidad y panel de operador con permisos. El envío público actual es solo al correo fijo de DAUREL.
+- Las pruebas automáticas verifican rechazo sin sesión, rechazo de otros orígenes, límite diario, acceso por invitación específica y cierre de sesión.
+
+**Prueba manual breve:** abrir `/v2/client` y consultar el asunto laboral ya autorizado por la cuenta de prueba. Si no hay sesión, usar el botón «Recibir código de acceso». No hace falta ingresar la clave técnica.
