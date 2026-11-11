@@ -200,16 +200,16 @@ test("Segundo acceso usa solo correo OTP y 4 horas de expiración",async()=>{
  assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM operator_sessions").get().n,2);
 });
 
-test("Roles: lector solo ve; revocación surte efecto inmediatamente",async()=>{
+test("Seguridad: cambiar el rol propietario manualmente no permite suplantar un lector",async()=>{
  const f=fixture(),{cookie}=await enroll(f);
  f.sqlite.prepare("UPDATE operator_memberships SET role='reader'").run();
  assert.equal(roleAllows("reader","/v2/operator/api/queue","GET"),true);
  assert.equal(roleAllows("reader","/v2/operator/api/create","POST"),false);
- assert.equal((await worker.fetch(make("/v2/operator/api/queue","GET",undefined,{Cookie:cookie}),f.env)).status,200);
+ assert.equal((await worker.fetch(make("/v2/operator/api/queue","GET",undefined,{Cookie:cookie}),f.env)).status,401);
  assert.equal((await worker.fetch(make("/v2/operator/api/create","POST",
   {client_key:"demo-cliente1",case_type:"civil"},
-  {Cookie:cookie,"Idempotency-Key":"reader-not-allowed"}),f.env)).status,403);
- assert.equal((await worker.fetch(make("/v2/operator/api/telegram/status","GET",undefined,{Cookie:cookie}),f.env)).status,403);
+  {Cookie:cookie,"Idempotency-Key":"reader-not-allowed"}),f.env)).status,401);
+ assert.equal((await worker.fetch(make("/v2/operator/api/telegram/status","GET",undefined,{Cookie:cookie}),f.env)).status,401);
  f.sqlite.prepare("UPDATE operator_memberships SET status='disabled',revoked_at=CURRENT_TIMESTAMP").run();
  assert.equal((await worker.fetch(make("/v2/operator/api/queue","GET",undefined,{Cookie:cookie}),f.env)).status,401);
 });
@@ -498,7 +498,7 @@ test("Bitácora no se abre con cookie de cliente, clave técnica ni rol reader/m
  assert.equal((await worker.fetch(make(path),f.env)).status,401);
  for(const role of ["reader","manager"]){
   f.sqlite.prepare("UPDATE operator_memberships SET role=?").run(role);
-  assert.equal((await worker.fetch(make(path,"GET",undefined,{Cookie:cookie}),f.env)).status,403,role);
+  assert.equal((await worker.fetch(make(path,"GET",undefined,{Cookie:cookie}),f.env)).status,401,role);
   assert.equal(roleAllows(role,path,"GET"),false);
  }
  f.sqlite.prepare("UPDATE operator_memberships SET role='owner'").run();
