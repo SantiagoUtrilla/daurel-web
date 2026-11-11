@@ -77,10 +77,14 @@ async function hashedTaskId(requestId,key){
  return "followup-"+Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,"0")).join("");
 }
 
-export async function listFollowups(env,now=Date.now()){
+export async function listFollowups(env,now=Date.now(),actor=null){
  if(!await schemaReady(env.DB))return schemaError();
  const today=todayInMexico(now);
- const r=await env.DB.prepare([
+ const scoped=actor&&actor.role!=="owner";
+ const access=scoped
+  ?" AND EXISTS(SELECT 1 FROM operator_case_assignments a WHERE a.request_id=f.request_id AND a.account_id=? AND a.revoked_at IS NULL)"
+  :"";
+ const stmt=env.DB.prepare([
   "SELECT f.task_id,f.request_id,f.action_code,f.due_date,f.status,",
   "f.created_at,f.completed_at,sr.public_folio,sr.summary,",
   "ei.provider_user_id AS client_key",
@@ -89,9 +93,10 @@ export async function listFollowups(env,now=Date.now()){
   "JOIN external_identities ei ON ei.party_id=sr.requester_party_id",
   "AND ei.channel_account_id=?",
   "WHERE sr.intake_channel='staging_demo'",
-  "AND f.status='open'",
+  "AND f.status='open'"+access,
   "ORDER BY f.due_date ASC,f.created_at ASC,f.task_id ASC LIMIT 150",
- ].join(" ")).bind(CHANNEL).all();
+ ].join(" "));
+ const r=await (scoped?stmt.bind(CHANNEL,actor.account_id):stmt.bind(CHANNEL)).all();
  const tasks=(r.results||[]).map(t=>({
   ...t,title:ACTIONS[t.action_code]||"Actuación pendiente",
   signal:traffic(t.due_date,today),
