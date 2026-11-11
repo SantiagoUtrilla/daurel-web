@@ -21,7 +21,32 @@ const answer=(data,status=200,headers={})=>{
  return res;
 };
 function originOK(request){return request.headers.get("Origin")===new URL(request.url).origin}
-function emptyPost(request){return request.body===null}
+// Cloudflare puede representar un POST SIN contenido como un stream vacío
+// en lugar de null. Aceptar ambos, o JSON {} explícito, pero ningún dato extra.
+// El límite de 32 bytes evita leer cargas arbitrariamente grandes.
+async function emptyPost(request){
+ if(request.body===null)return true;
+ const length=request.headers.get("Content-Length");
+ if(length!==null&&(!/^\\d+$/.test(length)||Number(length)>32))return false;
+ const reader=request.body.getReader();
+ const chunks=[];
+ let size=0;
+ try{
+  while(true){
+   const {done,value}=await reader.read();
+   if(done)break;
+   size+=value.byteLength;
+   if(size>32){await reader.cancel();return false}
+   chunks.push(value);
+  }
+ }catch{return false}
+ const raw=new TextDecoder().decode(
+  chunks.length===0?new Uint8Array(0):
+  Uint8Array.from(chunks.flatMap(c=>Array.from(c)))
+ ).trim();
+ if(raw==="")return true;
+ return (request.headers.get("Content-Type")||"").toLowerCase().startsWith("application/json")&&raw==="{}";
+}
 function settingsOK(env){
  return env.ENVIRONMENT==="staging" &&
   typeof env.AUTH_OTP_HMAC_SECRET==="string"&&env.AUTH_OTP_HMAC_SECRET.length>=32 &&
@@ -110,8 +135,10 @@ async function reserveOTP(env,now){
  return perMinute.meta?.changes===1;
 }
 export async function operatorStart(request,env,transport=fetch,now=Date.now()){
- if(!originOK(request)||!emptyPost(request))
-  return answer({success:false,message:"Solicitud no permitida."},403);
+ if(!originOK(request))
+  return answer({success:false,message:"Origen de la solicitud no permitido."},403);
+ if(!await emptyPost(request))
+  return answer({success:false,message:"Formato de solicitud incorrecto. Actualiza la página (Ctrl + F5)."},400);
  if(!settingsOK(env)||!await operatorSchemaReady(env))
   return answer({success:false,message:"El acceso administrativo aún no está configurado."},503);
  const bootstrap=new URL(request.url).pathname.endsWith("/setup/start");
@@ -247,8 +274,10 @@ export async function operatorVerify(request,env,now=Date.now()){
  },200,{"Set-Cookie":sessionCookie(token,4*60*60)});
 }
 export async function operatorLogout(request,env,now=Date.now()){
- if(!originOK(request)||!emptyPost(request))
-  return answer({success:false,message:"Solicitud no permitida."},403);
+ if(!originOK(request))
+  return answer({success:false,message:"Origen de la solicitud no permitido."},403);
+ if(!await emptyPost(request))
+  return answer({success:false,message:"Formato de solicitud incorrecto. Actualiza la página (Ctrl + F5)."},400);
  const actor=await operatorIdentity(request,env,now);
  if(actor){
   await env.DB.batch([
