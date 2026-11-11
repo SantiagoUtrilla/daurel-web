@@ -167,3 +167,24 @@ test("Múltiples invitaciones diferentes no fusionan cuentas ni expedientes",asy
  assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS n FROM account_request_access").get().n,2);
  assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS n FROM accounts").get().n,1);
 });
+
+test("Reenvío de invitación sin esperar 15 minutos; nueva clave revoca la anterior", async()=>{
+ const f=await fixture(),p=await providerCapture();
+ const a=await issuePilotInvite(req("/issue","POST",issueBody("laboral")),f.env,p.send,NOW);
+ assert.equal(a.status,202);
+ const first=p.sent[0].code;
+ const blocked=await issuePilotInvite(req("/issue","POST",issueBody("laboral")),f.env,p.send,NOW+1000);
+ assert.equal(blocked.status,429);
+ const b=await issuePilotInvite(req("/issue","POST",issueBody("laboral")),f.env,p.send,NOW+31*1000);
+ assert.equal(b.status,202);
+ const second=p.sent[1].code;
+ assert.notEqual(first,second);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM case_invitations").get().n,2);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM case_invitations WHERE revoked_at IS NOT NULL").get().n,1);
+ const firstAttempt=await redeemPilotInvite(req("/redeem","POST",{code:first},{cookie:f.cookie}),f.env,NOW+31*1000+100);
+ assert.equal(firstAttempt.status,401);
+ const secondAttempt=await redeemPilotInvite(req("/redeem","POST",{code:second},{cookie:f.cookie}),f.env,NOW+31*1000+200);
+ assert.equal(secondAttempt.status,200);
+ const view=await (await viewPilotInvitedMatters(req("/my-cases","GET",undefined,{cookie:f.cookie}),f.env,NOW+31*1000+300)).json();
+ assert.equal(view.count,1);
+});
