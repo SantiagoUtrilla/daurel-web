@@ -10,7 +10,7 @@ import worker from "./worker.js";
 
 const BASE="https://staging.invalid";
 const TECH="clave-tecnica-operador-larga-1234567890";
-const NOW=Date.now();
+const NOW=Math.floor(Date.now()/30000)*30000+10000; // Interior de la ventana de 30 s
 
 function prep(sqlite,sql,args=[]){
  return {
