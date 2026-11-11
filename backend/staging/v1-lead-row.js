@@ -40,6 +40,8 @@ export function planLegacyLeadMapping(row){
  if(!V1_PERSONA.has(row.persona))warnings.push("persona_sin_equivalencia");
  if(!V2_STATUSES.has(row.status))warnings.push("estado_sin_equivalencia");
  if(!V2_PRIORITY.has(row.priority))warnings.push("prioridad_sin_equivalencia");
+ if(row.urgency==="48h"&&row.priority!=="high")
+  warnings.push("urgencia_48h_no_coincide_prioridad_alta");
  if(!FOLIO.test(row.request_id))warnings.push("formato_folio_revisar");
  if(![0,1].includes(row.privacy_consent))warnings.push("consentimiento_no_booleano");
  if(row.privacy_consent===1&&!text(row.privacy_consent_at,100))
