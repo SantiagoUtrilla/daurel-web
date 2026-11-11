@@ -50,6 +50,16 @@ Se preparó la consulta revisada `docs/DAUREL_V2_CONSULTA_SOLO_LECTURA_V1.sql`. 
 
 Objetivo: identificar las tablas de solicitudes, eventos, consentimiento, estado y vínculo a folio de V1 para diseñar después un mapeo compatible, una importación idempotente y un plan de reversión. Hasta que se conozca el esquema real, **no escribir scripts que importen información personal de producción ni asumir tablas o campos hipotéticos**.
 
+## Estructura real de V1: 29 columnas confirmadas
+
+El usuario ejecutó `PRAGMA table_info('leads')` sobre `daurel-db` en Cloudflare D1 Studio. El inventario íntegro quedó documentado en `docs/DAUREL_V2_MAPEO_REAL_LEADS.md` y el planificador puro se implementó en `backend/staging/v1-lead-row.js` con pruebas sintéticas.
+
+El folio visible se guarda en `leads.request_id` (confirmado además en el panel `main/public/admin.js`), mientras que `leads.id` es la identidad interna del registro legada. También se confirmaron los campos `privacy_consent_at`, `follow_up_status`, `follow_up_count`, `professional_assigned`, `deadline_verified`, `deadline_basis`, `deadline_notes`, `documents_status`, `documents_requested`, `created_at` y `updated_at`.
+
+**Limitación histórica:** en la base V1 solo se observó `leads` y la tabla interna `sqlite_sequence`. No hay evidencia en ese esquema de un historial de actuaciones por eventos; los contadores no permiten recrear actuaciones individuales. Antes de importar, preservar los campos legados no representados por V2 y mantener todo en contexto privado.
+
+**Siguiente lectura segura:** `docs/DAUREL_V2_AUDITORIA_AGREGADA_V1.sql` consulta exclusivamente recuentos y categorías de estado/urgencia/prioridad. No devuelve información de clientes. Útil para detectar valores inesperados y validar futuros recuentos, sin extraer datos reales.
+
 ## Estado de esta etapa
 
-Implementado: compatibilidad **de estructura** del formulario público mediante un adaptador puro, con pruebas sintéticas. No implementado: importación de datos reales, cambio de endpoint en producción, acceso administrativo definitivo ni conexión automática a Telegram. El próximo trabajo es revisar los controles y el esquema de almacenamiento V1 en modo seguro.
+Implementado: compatibilidad estructural de formulario V1, mapeo completo de 29 columnas persistidas de `leads` a un plan sin escrituras y pruebas sintéticas. Pendiente: validar recuentos/valores categóricos por consulta agregada, diseñar almacenamiento seguro de metadatos legados, importación idempotente, acceso administrativo definitivo y controles de protección de datos. No se han importado datos reales ni cambiado el endpoint de producción; Telegram queda para el corte final.
