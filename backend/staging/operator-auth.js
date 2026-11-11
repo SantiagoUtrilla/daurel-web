@@ -138,7 +138,7 @@ export async function operatorStart(request,env,transport=fetch,now=Date.now()){
   "WHERE challenge_id<>? AND email_normalized=? AND consumed_at IS NULL",
  ].join(" ")).bind(challengeId,OWNER).run();
  try{
-  const delivery=await sendLoginCode(OWNER,code,challengeId,env,transport);
+  const delivery=await sendLoginCode(OWNER,code,challengeId,env,transport,"operator");
   if(!delivery.accepted)throw Error("mail not accepted");
  }catch{
   await env.DB.prepare("UPDATE operator_login_challenges SET consumed_at=CURRENT_TIMESTAMP WHERE challenge_id=?")
