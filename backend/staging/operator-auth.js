@@ -109,7 +109,8 @@ export async function operatorIdentity(request,env,now=Date.now()){
   "WHERE s.token_sha256=? AND s.revoked_at IS NULL",
   "AND s.expires_at>? AND a.status='active'",
   "AND m.status='active' AND m.revoked_at IS NULL",
-  "AND ae.verified_at IS NOT NULL LIMIT 1",
+  "AND ae.verified_at IS NOT NULL",
+  "AND (m.role<>'owner' OR ae.email_normalized='daurelcontact@gmail.com') LIMIT 1",
  ].join(" ")).bind(hash,new Date(now).toISOString()).first();
  return row||null;
 }
@@ -221,7 +222,8 @@ async function operatorByEmail(env,email){
   "JOIN accounts a ON a.account_id=ae.account_id",
   "JOIN operator_memberships m ON m.account_id=a.account_id",
   "WHERE ae.email_normalized=? AND a.status='active'",
-  "AND m.status='active' AND m.revoked_at IS NULL LIMIT 1",
+  "AND m.status='active' AND m.revoked_at IS NULL",
+  "AND (m.role<>'owner' OR ae.email_normalized='daurelcontact@gmail.com') LIMIT 1",
  ].join(" ")).bind(email).first();
 }
 async function createOwner(env){
