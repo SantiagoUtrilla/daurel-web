@@ -1,6 +1,7 @@
 import { demoPageResponse } from "./demo-page.js";
 import {operatorPageResponse} from "./operator-page.js";
 import {listFollowups,createFollowup,changeFollowup} from "./followup-api.js";
+import {previewDailyAlerts,sendDailyAlerts} from "./daily-alerts.js";
 import {operatorActionCatalog,operatorRecordAction} from "./operator-actions.js";
 import {operatorQueue,operatorUpdateStatus,operatorSendInvitation} from "./operator-api.js";
 import { adminPageResponse } from "./admin-page.js";
@@ -159,6 +160,7 @@ export default {
     if(request.method==="GET" && url.pathname==="/v2/demo/invitations"){
       return invitationPageResponse();
     }
+    const isAlertPreview=request.method==="GET" && url.pathname==="/v2/operator/api/alerts/preview";
     const isFollowupList=request.method==="GET" && url.pathname==="/v2/operator/api/followups";
     const isFollowupCreate=request.method==="POST" && url.pathname==="/v2/operator/api/followups/create";
     const isFollowupComplete=request.method==="POST" && url.pathname==="/v2/operator/api/followups/complete";
@@ -191,7 +193,7 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -204,6 +206,7 @@ export default {
     }
 
     try {
+      if(isAlertPreview)return await previewDailyAlerts(env);
       if(isFollowupList)return await listFollowups(env);
       if(isFollowupCreate)return await createFollowup(request,env);
       if(isFollowupComplete)return await changeFollowup(request,env,"complete");
@@ -233,5 +236,11 @@ export default {
       console.error("DAUREL staging demo API error");
       return json({ success: false, message: "Error interno de prueba; no reintentes con una clave de idempotencia diferente." }, 500);
     }
+  },
+  async scheduled(controller,env,ctx){
+    // Solo Cron diario de staging. Sin envío si no hay activación explícita.
+    if(controller.cron!=="0 15 * * *"||env.ENVIRONMENT!=="staging")return;
+    const result=await sendDailyAlerts(env,controller.scheduledTime);
+    if(result.reason==="delivery_failed")throw new Error("No se confirmó la alerta del día de staging");
   },
 };
