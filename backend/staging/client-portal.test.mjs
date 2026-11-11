@@ -10,7 +10,7 @@ import {issuePilotInvite} from "./invitation-api.js";
 const BASE="https://staging.invalid";
 const HMAC="clave-hmac-para-tests-independiente-y-larga-1234567890";
 const TECH="clave-tecnica-demo-extensa-larga-01234567890";
-const NOW=Date.parse("2026-11-10T20:00:00.000Z");
+const NOW=Date.now();
 function statement(db,sql,values=[]){
  return {
   bind:(...v)=>statement(db,sql,v),
