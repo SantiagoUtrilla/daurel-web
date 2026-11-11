@@ -58,17 +58,22 @@ async function matter(db,requestId){
   "WHERE sr.request_id=? AND sr.intake_channel='staging_demo' LIMIT 1",
  ].join(" ")).bind(CHANNEL,requestId).first();
 }
-export async function operatorQueue(env){
- const stats=await env.DB.prepare([
+export async function operatorQueue(env,actor=null){
+ const scoped=actor&&actor.role!=="owner";
+ const access= scoped
+  ?" AND EXISTS (SELECT 1 FROM operator_case_assignments oca WHERE oca.account_id=? AND oca.request_id=sr.request_id AND oca.revoked_at IS NULL)"
+  :"";
+ const statsStmt=env.DB.prepare([
   "SELECT COUNT(*) AS total,",
   "COUNT(DISTINCT requester_party_id) AS clients,",
   "SUM(CASE WHEN status='new' THEN 1 ELSE 0 END) AS new_count,",
   "SUM(CASE WHEN status='contacted' THEN 1 ELSE 0 END) AS contacted_count,",
   "SUM(CASE WHEN status='in_attention' THEN 1 ELSE 0 END) AS attention_count,",
   "SUM(CASE WHEN status='closed' THEN 1 ELSE 0 END) AS closed_count",
-  "FROM service_requests WHERE intake_channel='staging_demo'",
- ].join(" ")).first();
- const r=await env.DB.prepare([
+  "FROM service_requests sr WHERE sr.intake_channel='staging_demo'"+access,
+ ].join(" "));
+ const stats=await (scoped?statsStmt.bind(actor.account_id):statsStmt).first();
+ const stmt=env.DB.prepare([
   "SELECT sr.request_id,sr.public_folio,sr.summary,sr.status,sr.priority,",
   "sr.opened_at,sr.updated_at,ei.provider_user_id AS client_key,",
   "(SELECT COUNT(*) FROM account_request_access aa",
@@ -76,9 +81,10 @@ export async function operatorQueue(env){
   "FROM service_requests sr",
   "JOIN external_identities ei ON ei.party_id=sr.requester_party_id",
   "AND ei.channel_account_id=?",
-  "WHERE sr.intake_channel='staging_demo'",
+  "WHERE sr.intake_channel='staging_demo'"+access,
   "ORDER BY sr.updated_at DESC,sr.opened_at DESC,sr.request_id DESC LIMIT 100",
- ].join(" ")).bind(CHANNEL).all();
+ ].join(" "));
+ const r=await (scoped?stmt.bind(CHANNEL,actor.account_id):stmt.bind(CHANNEL)).all();
  return reply({
   success:true,environment:"staging",synthetic_only:true,
   statistics:{
