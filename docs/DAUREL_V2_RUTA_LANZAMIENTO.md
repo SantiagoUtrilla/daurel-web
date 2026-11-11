@@ -60,6 +60,16 @@ El folio visible se guarda en `leads.request_id` (confirmado además en el panel
 
 **Siguiente lectura segura:** `docs/DAUREL_V2_AUDITORIA_AGREGADA_V1.sql` consulta exclusivamente recuentos y categorías de estado/urgencia/prioridad. No devuelve información de clientes. Útil para detectar valores inesperados y validar futuros recuentos, sin extraer datos reales.
 
+## Auditoría agregada confirmada y ensayo transaccional
+
+El usuario ejecutó una consulta de solo lectura sobre `daurel-db.leads`. Resultado: **3 solicitudes, 3 folios distintos, 0 folios vacíos, 0 consentimientos marcados como aceptados sin fecha**. Valores de estado observados: `new`, `contacted`; urgencia: `soon`, `48h`, `no`; prioridad: únicamente `normal`. La captura no incluye cuántas solicitudes hay por cada estado, ni vincula la urgencia `48h` con una fila concreta. **No inferir valores fila por fila ni modificar prioridades.**
+
+Se diseñó `backend/migrations/0005_legacy_lead_details.sql` para preservar evidencia operativa V1 que no cabe en las tablas V2. Se implementó `backend/staging/v1-synthetic-import.js` **sin ruta web** y restringido a fixtures inequívocamente ficticios, con inserción transaccional, detección de duplicados y preservación de folio, estado, fecha y consentimiento legado sin emitir cuentas ni autorizaciones. La migración 0005 **NO está aplicada en Cloudflare** y solo se ejecuta en SQLite de memoria durante pruebas.
+
+En GitHub Actions pasan **78 pruebas** (8 nuevas de migración simulada). Los ensayos usan exclusivamente tres expedientes inventados y confirman reversión si existe un folio repetido, no fusión por WhatsApp, no fabricación de eventos históricos y rechazo de filas reales. **Nunca usar estas pruebas para importar directamente `daurel-db`.**
+
+Próximos bloqueadores para migrar registros reales: respaldo verificable y reversión, consentimiento/aviso de privacidad, controles de acceso administrativo y revisión del comportamiento del backend V1. Los tres registros reales todavía pertenecen íntegramente a V1.
+
 ## Estado de esta etapa
 
-Implementado: compatibilidad estructural de formulario V1, mapeo completo de 29 columnas persistidas de `leads` a un plan sin escrituras y pruebas sintéticas. Pendiente: validar recuentos/valores categóricos por consulta agregada, diseñar almacenamiento seguro de metadatos legados, importación idempotente, acceso administrativo definitivo y controles de protección de datos. No se han importado datos reales ni cambiado el endpoint de producción; Telegram queda para el corte final.
+Implementado: compatibilidad estructural de formulario V1, mapeo completo de 29 columnas persistidas de `leads` a un plan sin escrituras y pruebas sintéticas. Realizado: auditoría agregada V1, diseño del almacenamiento de metadatos legados y ensayo transaccional de importación ficticia con idempotencia. Pendiente: respaldo y migración de datos reales, permisos administrativos definitivos, controles de protección de datos y corte reversible. No se han importado datos reales ni cambiado el endpoint de producción; Telegram queda para el corte final.
