@@ -138,6 +138,12 @@ export async function changeOperatorMember(req,env,actor){
    "UPDATE operator_sessions SET revoked_at=CURRENT_TIMESTAMP",
    "WHERE account_id=? AND revoked_at IS NULL",
   ].join(" ")).bind(id),
+  // Invalidar también los códigos emitidos antes de una revocación.
+  env.DB.prepare([
+   "UPDATE operator_login_challenges SET consumed_at=CURRENT_TIMESTAMP",
+   "WHERE email_normalized=(SELECT email_normalized FROM operator_approved_emails",
+   "WHERE account_id=?) AND consumed_at IS NULL",
+  ].join(" ")).bind(id),
   env.DB.prepare([
    "INSERT INTO operator_access_audit(audit_id,account_id,event_type,operation)",
    "VALUES (?,?,'operator_action',?)",
