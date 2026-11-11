@@ -190,3 +190,24 @@ Los colores no representan cumplimiento ni progreso jurídico, solo **urgencia t
 **Sin costos adicionales ni notificaciones:** esta versión muestra pendientes al abrir o actualizar el panel desde navegador/celular. No ejecuta tareas ni envía WhatsApp, correos, avisos de calendario o alertas automáticas en segundo plano. Esas funciones requieren diseño y pruebas posteriores (p.ej., Cloudflare Cron Trigger) antes de declararlas operativas.
 
 **Prueba manual:** tras instalar 0004, recargar `/v2/operator` (Ctrl+F5), entrar con clave técnica, encontrar en un expediente activo «Próximo paso», elegir acción y fecha, pulsar «Programar pendiente». Debe aparecer en «Agenda de próximos pasos». Marcar «Hecho» y comprobar que desaparece de abiertos y queda en «Ver historial». Usar solo expedientes `demo-*` y datos ficticios. Una única tabla nueva, sin secretos adicionales.
+
+## 13. Vista previa y alertas diarias Telegram (opt-in, sin WhatsApp)
+
+La agenda `0004` ya funciona para asuntos ficticios. Nuevo botón en `/v2/operator`: **Recordatorios en Telegram → Ver mensaje de ejemplo**. La vista previa usa `GET /v2/operator/api/alerts/preview`, protegido por `STAGING_TEST_TOKEN`. No envía mensajes.
+
+**Programación de Cloudflare:** `wrangler.staging.jsonc` define Cron `0 15 * * *`, equivalente a **09:00 hora de Ciudad de México**. El Worker implementa `scheduled()`, pero el envío se encuentra **apagado por defecto**. La programación no activa el envío por sí sola.
+
+**Para habilitarlo explícitamente en un futuro ensayo**, son necesarios tres Secrets definidos SOLO en `daurel-backend-staging` (nunca en GitHub):
+- `DAUREL_V2_TELEGRAM_BOT_TOKEN`: token de un bot Telegram bajo control del operador;
+- `DAUREL_V2_TELEGRAM_CHAT_ID`: identificador numérico del chat privado que recibirá las pruebas;
+- `DAUREL_V2_ALERTS_ENABLED`: texto exacto `true`, también en Secret. **No configurarlo** hasta confirmar la recepción de pruebas y consentimiento del destinatario.
+
+No solicitar ni compartir los valores de los Secrets en chats, capturas, Github Issues o logs. Los mensajes de prueba evitan nombres, teléfonos, emails o información procesal; muestran únicamente folios **ficticios**, tipo de pendiente y fecha. No se importan conversaciones de WhatsApp personal.
+
+Cada día se incluyen pendientes atrasados, del día y de mañana, hasta 25 entradas en la síntesis. No se envía mensaje si no hay pendientes. La tabla `integration_events` ya existente controla reintentos y reduce duplicados por día sin crear otra migración. Telegram no proporciona un envío exactamente-una-vez entre redes: un fallo después de aceptar el mensaje podría originar una repetición, por lo que NO debe prometerse entrega exactamente única.
+
+Las pruebas automáticas usan un transporte Telegram simulado (nunca envían mensajes reales). Comprueban ruta de previsualización protegida, privacidad, desactivación por defecto, envío simulado, deduplicación, reintento tras fallo, y bloqueo fuera de staging.
+
+**Costo:** diseño para operar en Cloudflare Workers + D1 + Telegram Bot API sin contratar un servicio nuevo, sujeto a los límites vigentes de las capas gratuitas. Si un recurso superara el límite de su plan, detener o reconfigurar el envío en lugar de incurrir en gastos.
+
+**Chequeo de seguridad:** en la vista previa debe aparecer `delivery_enabled: false` mientras no haya consentimiento/secretos. El portal público `daurel.com.mx` y `daurel-db` permanecen independientes.
