@@ -431,3 +431,25 @@ test("Content-Length validado como número: rechaza tamaños manipulados o exces
  }),f.env,providerCapture().transport,now);
  assert.equal(valid.status,202);
 });
+
+
+test("Ruta real del Worker: POST de Chrome con Content-Length 2 llega a comprobar la clave técnica",async()=>{
+ const f=fixture();
+ const request=new Request(ORIGIN+"/v2/operator/auth/setup/start",{
+  method:"POST",
+  headers:{
+   "Origin":ORIGIN,"Sec-Fetch-Site":"same-origin",
+   "Referer":ORIGIN+"/v2/operator?utm_source=chatgpt.com",
+   "Authorization":"Bearer NO_ES_CLAVE_VALIDA",
+   "Content-Type":"application/json",
+   "Content-Length":"2",
+  },
+  body:"{}",
+ });
+ // La ruta NO debe devolver 400 (formato). Debe llegar a la verificación
+ // del secreto técnico y fallar únicamente por la clave deliberadamente falsa.
+ const response=await worker.fetch(request,f.env);
+ assert.equal(response.status,401);
+ assert.match((await response.json()).message,/Clave técnica de primera activación incorrecta/);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM operator_login_challenges").get().n,0);
+});
