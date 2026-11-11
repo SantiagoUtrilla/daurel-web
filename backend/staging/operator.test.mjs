@@ -7,7 +7,7 @@ import {operatorQueue,operatorUpdateStatus,operatorSendInvitation} from "./opera
 import {operatorActionCatalog,operatorRecordAction} from "./operator-actions.js";
 import {listFollowups,createFollowup,changeFollowup} from "./followup-api.js";
 import {reminderDigest,previewDailyAlerts,sendDailyAlerts} from "./daily-alerts.js";
-import {telegramConnectionStatus,testTelegramConnection} from "./telegram-setup.js";
+import {telegramConnectionStatus,testTelegramConnection,discoverTelegramChat} from "./telegram-setup.js";
 import {newSessionToken,tokenHash} from "./auth-core.js";
 import worker from "./worker.js";
 
@@ -547,4 +547,49 @@ test("Telegram: error del proveedor no muestra token ni activa cron",async()=>{
  assert.ok(!JSON.stringify(data).includes("123456:"));
  assert.ok(!JSON.stringify(data).includes("sensitive-token-value"));
  assert.equal(env.DAUREL_V2_ALERTS_ENABLED,undefined);
+});
+
+
+test("Telegram: descubre chat privado mediante frase temporal, sin filtrar otros chats",async()=>{
+ const f=await fixture();
+ const now=Date.parse("2026-11-11T10:00:00.000Z");
+ const env={...f.env,DAUREL_V2_TELEGRAM_BOT_TOKEN:"123456:abcdefghijklmnopqrstuvwxyz123456789"};
+ const phrase="DAUREL-ABC12345";
+ const simulated=async(url,init)=>{
+  assert.match(url,/getUpdates\?limit=100&timeout=0/);
+  assert.equal(init.method,"GET");
+  return {ok:true,json:async()=>({ok:true,result:[
+   {update_id:10,message:{chat:{type:"group",id:-999888777},text:phrase,date:Math.floor(now/1000)}},
+   {update_id:20,message:{chat:{type:"private",id:111222333},text:"otra cosa",date:Math.floor(now/1000)}},
+   {update_id:25,message:{chat:{type:"private",id:100200300},text:phrase,date:Math.floor(now/1000)-4000}},
+   {update_id:30,message:{chat:{type:"private",id:533414123},text:phrase,date:Math.floor(now/1000)}},
+  ]})};
+ };
+ const reqPair=()=>req("/v2/operator/api/telegram/discover","POST",{phrase});
+ assert.equal((await worker.fetch(req("/v2/operator/api/telegram/discover","POST",{phrase},{tech:false,cookie:f.cookie}),env)).status,401);
+ const found=await discoverTelegramChat(reqPair(),env,simulated,now);
+ assert.equal(found.status,200);
+ const data=await found.json();
+ assert.equal(data.chat_id,"533414123");
+ assert.equal(data.private_chat,true);
+ assert.ok(!JSON.stringify(data).includes(env.DAUREL_V2_TELEGRAM_BOT_TOKEN));
+ const screen=await (await worker.fetch(req("/v2/operator"),env)).text();
+ assert.match(screen,/Generar frase de vinculación/);
+ assert.match(screen,/Detectar mi chat/);
+});
+
+test("Telegram: no reconoce otros códigos, mensajes antiguos ni origen externo",async()=>{
+ const f=await fixture(),now=Date.parse("2026-11-11T10:00:00.000Z");
+ const env={...f.env,DAUREL_V2_TELEGRAM_BOT_TOKEN:"123456:abcdefghijklmnopqrstuvwxyz123456789"};
+ const path="/v2/operator/api/telegram/discover",phrase="DAUREL-ABCDEFGH";
+ const old=async()=>({ok:true,json:async()=>({ok:true,result:[
+  {update_id:1,message:{chat:{type:"private",id:533414123},text:phrase,date:Math.floor(now/1000)-4000}},
+ ]})});
+ assert.equal((await discoverTelegramChat(req(path,"POST",{phrase},{origin:"https://evil.invalid"}),env,old,now)).status,403);
+ assert.equal((await discoverTelegramChat(req(path,"POST",{phrase:"hello"}),env,old,now)).status,400);
+ const noMatch=await discoverTelegramChat(req(path,"POST",{phrase}),env,old,now);
+ assert.equal(noMatch.status,404);
+ assert.equal((await discoverTelegramChat(req(path,"POST",{phrase}),{...env,ENVIRONMENT:"production"},old,now)).status,403);
+ const badBot=await discoverTelegramChat(req(path,"POST",{phrase}),f.env,old,now);
+ assert.equal(badBot.status,503);
 });
