@@ -84,7 +84,7 @@ async function providerCapture(){
   const data=JSON.parse(init.body);
   assert.deepEqual(data.to,["daurelcontact@gmail.com"]);
   assert.equal(data.from,"DAUREL <acceso@daurel.com.mx>");
-  const code=data.text.match(/Código de invitación \(cópialo completo\): ([A-Za-z0-9_-]{43})/)?.[1];
+  const code=data.text.match(/Si necesitas introducirlo manualmente, tu código es: ([A-Za-z0-9_-]{43})/)?.[1];
   assert.match(code,/^[A-Za-z0-9_-]{43}$/);
   sent.push({code,data});
   return {ok:true};
