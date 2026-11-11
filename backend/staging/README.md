@@ -250,3 +250,13 @@ Rutas del piloto `/v2/operator/auth/{status,setup/start,start,verify,logout}`, y
 La sesión administrativa usa cookie `__Host-daurel_v2_operator` independiente de `__Host-daurel_v2_pilot` (cliente). Los códigos están protegidos con HMAC de dominio administrativo y no sirven para iniciar sesión como cliente. Se limita la emisión a un correo por minuto y seis por día. Verificación de diez minutos y hasta cinco intentos. No se guardan códigos ni tokens en GitHub.
 
 El panel ahora utiliza rutas propias `/v2/operator/api/create` y `/v2/operator/api/history/:id` para que el usuario administrador **no necesite la clave técnica para crear solicitudes de prueba o ver el historial**. Los cambios con sesión administrativa se registran en `operator_access_audit` sin copiar datos privados ni el contenido de las solicitudes.
+
+## 16. Bitácora de acceso a operadores (sin migraciones adicionales)
+
+Con la cuenta `owner` ya activada, el Centro de operaciones `/v2/operator` muestra el módulo **Bitácora de administración**. Usa la tabla `operator_access_audit` instalada en la migración `0006` y la ruta `GET /v2/operator/api/audit`. No hace falta ejecutar SQL ni crear otra cuenta.
+
+La lectura exige **cookie administrativa activa y rol owner**. Las cookies del cliente, la clave técnica anterior, roles `manager` y `reader` no permiten abrir la bitácora. Se devuelven como máximo 50 eventos recientes, con fecha SQLite en UTC, correo verificado del operador (para facilitar la atribución) y tipo de operación. Nunca se devuelven token, código OTP, ID de sesión o contenido de expedientes. Se incluyen alta de propietario, inicios y cierres de sesión y las operaciones completadas por las rutas administrativas. No se registran aún todos los intentos fallidos: por eso el panel no debe presentarse como un registro forense exhaustivo.
+
+Prueba: abrir `/v2/operator` con sesión de administrador; localizar `Bitácora de administración`, pulsar `Actualizar bitácora`; confirmar que aparecen los eventos exitosos de ingreso. Al cerrar sesión administrativa, el panel y su bitácora deben quedar inaccesibles. Todo permanece aislado en `daurel-staging`.
+
+Siguiente módulo antes de añadir colaboradores reales: alta y revocación de membresías con autorización expresa, correos individuales verificados, permisos mínimos por rol y trazabilidad de cada cambio. No asignar roles manualmente en D1 a empleados reales. No utilizar estas herramientas con solicitudes de clientes reales hasta completar revisión de seguridad y privacidad.
