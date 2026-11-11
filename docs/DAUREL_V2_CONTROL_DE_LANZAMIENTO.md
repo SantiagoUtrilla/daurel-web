@@ -19,10 +19,11 @@ Actualizado: 11 de noviembre de 2026. Rama de desarrollo: `architecture/daurel-v
 
 ## Activación restante del equipo (solo staging)
 
-- [ ] Ejecutar **una vez** `backend/migrations/0007_operator_approvals.sql` exclusivamente en **daurel-staging**. Crea dos tablas y dos índices (autorizaciones de correo y expedientes asignados), no toca cuentas existentes ni `daurel-db`.
-- [ ] Verificar `/health` → `optional_team_schema.ready: true` (2 tablas).
-- [ ] Recargar `/v2/operator` y comprobar sección «Administrar colaboradores» con sesión owner.
-- [ ] Probar con **un segundo correo de prueba controlado** antes de invitar a alguien real. Su acceso no debe mostrarse como verificado antes de usar OTP, ni puede ver la bitácora general. Al desactivarlo, su sesión debe perder acceso.
+- [x] Ejecutada **una vez** la migración `backend/migrations/0007_operator_approvals.sql` únicamente en `daurel-staging`; el usuario confirmó la operación manual.
+- [x] Verificado `/health` → `optional_team_schema.ready: true`, `expected_tables: 2`, `missing_tables: []`.
+- [x] Verificada sección «Administrar colaboradores» en `/v2/operator` con sesión de propietario.
+- [x] Ensayo manual con segundo correo de prueba: autorización como lector, OTP, visualización de **1 expediente asignado** y ocultación del expediente civil ajeno; al **revocar la asignación** y actualizar la página, el usuario confirmó **0 expedientes visibles sin cerrar sesión** (11/11/2026). No se usaron datos de clientes reales.
+- [ ] Ensayar por separado desactivación total del colaborador, revocación de sesión y pruebas de seguridad de rutas directas, antes de producción.
 
 ## Bloqueadores del lanzamiento real (P0)
 
