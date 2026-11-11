@@ -6,6 +6,11 @@ import { sendStagingDeliveryProbe } from "./email-test-api.js";
 import { authPilotPageResponse } from "./auth-pilot-page.js";
 import { accountLinkPageResponse } from "./account-link-page.js";
 import {invitationPageResponse} from "./invitation-page.js";
+import {clientPortalPageResponse} from "./client-portal-page.js";
+import {
+ portalRequestLogin,portalVerifyLogin,portalSession,portalLogout,
+ portalMatters,portalAcceptInvitation,
+} from "./client-portal-api.js";
 import {issuePilotInvite,redeemPilotInvite,viewPilotInvitedMatters} from "./invitation-api.js";
 import {viewPilotAccount, linkPilotClient, unlinkPilotClient} from "./account-link-api.js";
 import {
@@ -85,6 +90,31 @@ export default {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/health") {
       return health(env);
+    }
+
+    // Ruta del cliente simulado: sin STAGING_TEST_TOKEN. Solo correo fijo,
+    // cookie de sesión y permisos individuales. Aislado por ENVIRONMENT staging.
+    if(request.method==="GET" && url.pathname==="/v2/client"){
+      return clientPortalPageResponse();
+    }
+    const clientApi={
+      "/v2/client/api/start":["POST",portalRequestLogin],
+      "/v2/client/api/verify":["POST",portalVerifyLogin],
+      "/v2/client/api/session":["GET",portalSession],
+      "/v2/client/api/logout":["POST",portalLogout],
+      "/v2/client/api/cases":["GET",portalMatters],
+      "/v2/client/api/accept":["POST",portalAcceptInvitation],
+    };
+    const clientRoute=clientApi[url.pathname];
+    if(clientRoute){
+      if(request.method!==clientRoute[0]){
+        return json({success:false,message:"Método no permitido."},405);
+      }
+      try{return await clientRoute[1](request,env)}
+      catch{
+        console.error("DAUREL staging client portal error");
+        return json({success:false,message:"Acceso temporalmente no disponible."},503);
+      }
     }
 
     if (request.method === "GET" && url.pathname === "/v2/demo") {
