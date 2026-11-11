@@ -18,7 +18,7 @@ export const V1_CATEGORIES=Object.freeze([
 ]);
 const CATEGORY=new Set(V1_CATEGORIES);
 const PERSON=new Set(["particular","empresa"]);
-const URGENCY=new Set(["unknown","48h","7d","30d"]);
+const URGENCY=new Set(["unknown","48h","soon","no"]);
 function clean(v,max){
  if(typeof v!=="string")return null;
  const t=v.trim().replace(/\s+/gu," ");
@@ -40,7 +40,7 @@ export function normalizeV1Intake(input){
  const situation=clean(input.situation,3000);
  const answer=clean(input.key_answer,500);
  const location=clean(input.location,150);
- if(!name||name.length<2||!situation||!location||location.length<2||
+ if(!name||name.length<2||!situation||situation.length<12||!location||location.length<2||
     !validPhone(input.whatsapp)||!answer){
   return reject("Faltan datos mínimos para conservar la solicitud.");
  }
