@@ -1,4 +1,6 @@
 import { demoPageResponse } from "./demo-page.js";
+import {operatorPageResponse} from "./operator-page.js";
+import {operatorQueue,operatorUpdateStatus,operatorSendInvitation} from "./operator-api.js";
 import { adminPageResponse } from "./admin-page.js";
 import { dossierPageResponse } from "./dossier-page.js";
 import { mailTestPageResponse } from "./email-test-page.js";
@@ -121,6 +123,10 @@ export default {
       return demoPageResponse();
     }
 
+    if(request.method==="GET" && url.pathname==="/v2/operator"){
+      return operatorPageResponse();
+    }
+
     if (request.method === "GET" && url.pathname === "/v2/demo/admin") {
       return adminPageResponse();
     }
@@ -142,6 +148,9 @@ export default {
     if(request.method==="GET" && url.pathname==="/v2/demo/invitations"){
       return invitationPageResponse();
     }
+    const isOperatorQueue=request.method==="GET" && url.pathname==="/v2/operator/api/queue";
+    const isOperatorStatus=request.method==="POST" && url.pathname==="/v2/operator/api/status";
+    const isOperatorInvite=request.method==="POST" && url.pathname==="/v2/operator/api/invite";
     const isInviteIssue=request.method==="POST" && url.pathname==="/v2/demo/invitations/issue";
     const isInviteRedeem=request.method==="POST" && url.pathname==="/v2/demo/invitations/redeem";
     const isInviteView=request.method==="GET" && url.pathname==="/v2/demo/invitations/my-cases";
@@ -165,7 +174,7 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -178,6 +187,9 @@ export default {
     }
 
     try {
+      if(isOperatorQueue)return await operatorQueue(env);
+      if(isOperatorStatus)return await operatorUpdateStatus(request,env);
+      if(isOperatorInvite)return await operatorSendInvitation(request,env);
       if(isInviteIssue)return await issuePilotInvite(request,env);
       if(isInviteRedeem)return await redeemPilotInvite(request,env);
       if(isInviteView)return await viewPilotInvitedMatters(request,env);
