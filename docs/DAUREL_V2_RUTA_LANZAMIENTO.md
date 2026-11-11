@@ -44,6 +44,12 @@ El código actual en `main/public/script.js` emite un `POST /solicitudes` a `htt
 - `daurel-db` contiene solicitudes reales. Nunca aplicar migraciones 0001–0004 allí, ni importar una base mediante acciones de laboratorio.
 - Las tablas 0001–0004 se aplicaron manualmente a staging; conciliar el historial de migraciones antes de automatizarlo. No asumir que el historial Wrangler está correcto.
 
+## Auditoría inicial de V1: solo lectura, sin datos personales
+
+Se preparó la consulta revisada `docs/DAUREL_V2_CONSULTA_SOLO_LECTURA_V1.sql`. Ejecútese **únicamente bajo D1 → daurel-db → Explore Data** en el editor SQL de Cloudflare. Es un `SELECT` de metadatos de `sqlite_master` y `pragma_table_info` que devuelve únicamente **nombres de tablas y columnas**, no filas de usuarios, ni teléfonos, ni folios, ni expedientes. No ejecutar scripts de migración en esa base.
+
+Objetivo: identificar las tablas de solicitudes, eventos, consentimiento, estado y vínculo a folio de V1 para diseñar después un mapeo compatible, una importación idempotente y un plan de reversión. Hasta que se conozca el esquema real, **no escribir scripts que importen información personal de producción ni asumir tablas o campos hipotéticos**.
+
 ## Estado de esta etapa
 
 Implementado: compatibilidad **de estructura** del formulario público mediante un adaptador puro, con pruebas sintéticas. No implementado: importación de datos reales, cambio de endpoint en producción, acceso administrativo definitivo ni conexión automática a Telegram. El próximo trabajo es revisar los controles y el esquema de almacenamiento V1 en modo seguro.
