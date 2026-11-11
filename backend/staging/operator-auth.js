@@ -20,7 +20,18 @@ const answer=(data,status=200,headers={})=>{
  for(const [k,v] of Object.entries(headers))res.headers.set(k,v);
  return res;
 };
-function originOK(request){return request.headers.get("Origin")===new URL(request.url).origin}
+function originOK(request){
+ const expected=new URL(request.url).origin;
+ const origin=request.headers.get("Origin");
+ // Un Origin explícito distinto NUNCA se acepta.
+ if(origin!==null)return origin===expected;
+ // Algunos navegadores/extensiones eliminan Origin de POST de mismo origen.
+ // En ese caso exigir TAMBIÉN las señales del navegador y Referer exacto.
+ if(request.headers.get("Sec-Fetch-Site")!=="same-origin")return false;
+ const referer=request.headers.get("Referer");
+ if(!referer)return false;
+ try{return new URL(referer).origin===expected}catch{return false}
+}
 // Cloudflare puede representar un POST SIN contenido como un stream vacío
 // en lugar de null. Aceptar ambos, o JSON {} explícito, pero ningún dato extra.
 // El límite de 32 bytes evita leer cargas arbitrariamente grandes.
