@@ -4,7 +4,7 @@
 
 import { normalizeEmail } from "./auth-core.js";
 
-export async function sendLoginCode(to, code, challengeId, env, transport=fetch) {
+export async function sendLoginCode(to, code, challengeId, env, transport=fetch, context="client") {
   const email = normalizeEmail(to);
   if (!email || !/^\d{6}$/.test(code) ||
       !/^[0-9a-f-]{36}$/i.test(challengeId)) {
@@ -17,8 +17,9 @@ export async function sendLoginCode(to, code, challengeId, env, transport=fetch)
   const payload={
     from: "DAUREL <"+env.AUTH_EMAIL_FROM+">",
     to: [email],
-    subject: "Tu código de acceso a DAUREL",
+    subject: context==="operator" ? "Código administrativo de DAUREL V2" : "Tu código de acceso a DAUREL",
     text: [
+      context==="operator" ? "Acceso al panel administrativo de DAUREL V2." : "Acceso a tu espacio de DAUREL.",
       "Tu código temporal es: "+code,
       "Caduca en 10 minutos.",
       "Si no solicitaste acceso a DAUREL, puedes ignorar este mensaje.",
