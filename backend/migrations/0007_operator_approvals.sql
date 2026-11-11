@@ -11,3 +11,16 @@ CREATE TABLE IF NOT EXISTS operator_approved_emails (
 );
 CREATE INDEX IF NOT EXISTS idx_operator_approvals_owner
   ON operator_approved_emails(approved_by_account_id,approved_at);
+
+-- La asignación por expediente es EXPLÍCITA. El rol global no abre todos
+-- los expedientes a un colaborador. El propietario puede verlos todos.
+CREATE TABLE IF NOT EXISTS operator_case_assignments (
+  account_id TEXT NOT NULL REFERENCES accounts(account_id) ON DELETE RESTRICT,
+  request_id TEXT NOT NULL REFERENCES service_requests(request_id) ON DELETE RESTRICT,
+  assigned_by_account_id TEXT NOT NULL REFERENCES accounts(account_id) ON DELETE RESTRICT,
+  assigned_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  revoked_at TEXT,
+  PRIMARY KEY(account_id, request_id)
+);
+CREATE INDEX IF NOT EXISTS idx_operator_case_assignments_request
+  ON operator_case_assignments(request_id,revoked_at);
