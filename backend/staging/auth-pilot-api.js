@@ -12,7 +12,7 @@ const OWNER_EMAIL = "daurelcontact@gmail.com";
 const SESSION_COOKIE = "__Host-daurel_v2_pilot";
 const OTP_LIFETIME_MS = 10 * 60 * 1000;
 const SESSION_LIFETIME_MS = 8 * 60 * 60 * 1000;
-const RATE_WINDOW_MS = 5 * 60 * 1000;
+const RATE_WINDOW_MS = 60 * 1000; // Staging con correo fijo y clave técnica
 
 function noStore(resp) {
   resp.headers.set("Cache-Control", "no-store");
@@ -106,7 +106,7 @@ export async function startPilotLogin(request, env, transport = fetch, now = Dat
     "VALUES ('daurel-staging-owner-pilot', ?, 1)",
   ].join(" ")).bind(bucket).run();
   if (rate.meta?.changes !== 1) {
-    return reply({success:false,message:"Ya se solicitó un código. Espera cinco minutos para otro."},429);
+    return reply({success:false,message:"Ya se solicitó un código. Puedes solicitar otro al cambiar el minuto."},429);
   }
 
   const code = newOtp();
