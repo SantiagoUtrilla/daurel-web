@@ -35,6 +35,7 @@ import {
   authorizeDemo, createDemoRequest, listDemoClientRequests, getDemoAdminOverview, json,
 } from "./demo-api.js";
 
+const OPTIONAL_TEAM_TABLES=["operator_approved_emails"];
 const OPTIONAL_OPERATOR_TABLES=[
   "operator_memberships","operator_login_challenges","operator_sessions","operator_access_audit",
 ];
@@ -71,6 +72,7 @@ async function health(env) {
     const missingInvitationTables = OPTIONAL_INVITATION_TABLES.filter((table) => !present.has(table));
     const missingFollowupTables = OPTIONAL_FOLLOWUP_TABLES.filter((table) => !present.has(table));
     const missingOperatorTables = OPTIONAL_OPERATOR_TABLES.filter(table=>!present.has(table));
+    const missingTeamTables=OPTIONAL_TEAM_TABLES.filter(table=>!present.has(table));
     return json({
       service: "DAUREL V2 staging",
       status: missingTables.length ? "schema_incomplete" : "online",
@@ -104,6 +106,11 @@ async function health(env) {
         ready:missingOperatorTables.length===0,
         expected_tables:OPTIONAL_OPERATOR_TABLES.length,
         missing_tables:missingOperatorTables,
+      },
+      optional_team_schema:{
+        ready:missingTeamTables.length===0,
+        expected_tables:OPTIONAL_TEAM_TABLES.length,
+        missing_tables:missingTeamTables,
       },
     }, missingTables.length ? 503 : 200);
   } catch {
