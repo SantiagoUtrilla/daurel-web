@@ -1,5 +1,6 @@
 import { demoPageResponse } from "./demo-page.js";
 import {operatorPageResponse} from "./operator-page.js";
+import {operatorActionCatalog,operatorRecordAction} from "./operator-actions.js";
 import {operatorQueue,operatorUpdateStatus,operatorSendInvitation} from "./operator-api.js";
 import { adminPageResponse } from "./admin-page.js";
 import { dossierPageResponse } from "./dossier-page.js";
@@ -148,6 +149,8 @@ export default {
     if(request.method==="GET" && url.pathname==="/v2/demo/invitations"){
       return invitationPageResponse();
     }
+    const isOperatorActions=request.method==="GET" && url.pathname==="/v2/operator/api/actions";
+    const isOperatorRecord=request.method==="POST" && url.pathname==="/v2/operator/api/record";
     const isOperatorQueue=request.method==="GET" && url.pathname==="/v2/operator/api/queue";
     const isOperatorStatus=request.method==="POST" && url.pathname==="/v2/operator/api/status";
     const isOperatorInvite=request.method==="POST" && url.pathname==="/v2/operator/api/invite";
@@ -174,7 +177,7 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -187,6 +190,8 @@ export default {
     }
 
     try {
+      if(isOperatorActions)return operatorActionCatalog();
+      if(isOperatorRecord)return await operatorRecordAction(request,env);
       if(isOperatorQueue)return await operatorQueue(env);
       if(isOperatorStatus)return await operatorUpdateStatus(request,env);
       if(isOperatorInvite)return await operatorSendInvitation(request,env);
