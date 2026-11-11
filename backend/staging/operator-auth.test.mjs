@@ -453,3 +453,67 @@ test("Ruta real del Worker: POST de Chrome con Content-Length 2 llega a comproba
  assert.match((await response.json()).message,/Clave técnica de primera activación incorrecta/);
  assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM operator_login_challenges").get().n,0);
 });
+
+
+test("Bitácora owner: muestra accesos y acciones confirmadas sin mostrar datos privados",async()=>{
+ const f=fixture(),{cookie}=await enroll(f);
+ const path="/v2/operator/api/audit";
+ const response=await worker.fetch(make(path,"GET",undefined,{Cookie:cookie}),f.env);
+ assert.equal(response.status,200);
+ assert.equal(response.headers.get("Cache-Control"),"no-store");
+ const initial=await response.json();
+ assert.equal(initial.success,true);
+ assert.equal(initial.synthetic_only,true);
+ assert.ok(initial.events.some(e=>e.event_type==="owner_enrolled"));
+ assert.ok(initial.events.some(e=>e.event_type==="operator_login"));
+ assert.ok(initial.events.every(e=>e.operator_email===ADMIN_EMAIL));
+ assert.ok(initial.events.every(e=>!Object.hasOwn(e,"account_id")));
+ assert.ok(initial.events.every(e=>!Object.hasOwn(e,"session_id")));
+ assert.ok(!JSON.stringify(initial).includes(TECH));
+ assert.ok(!JSON.stringify(initial).includes(SECRET));
+ // La bitácora registra también una operación confirmada, no su contenido.
+ const created=await worker.fetch(make("/v2/operator/api/create","POST",
+  {client_key:"demo-cliente1",case_type:"laboral"},
+  {Cookie:cookie,"Idempotency-Key":"audit-create-0001"}),f.env);
+ assert.equal(created.status,201);
+ const updated=await (await worker.fetch(make(path,"GET",undefined,{Cookie:cookie}),f.env)).json();
+ const item=updated.events.find(e=>e.event_type==="operator_action");
+ assert.ok(item);
+ assert.equal(item.operation,"POST /v2/operator/api/create");
+ assert.ok(!JSON.stringify(updated).includes("Solicitud ficticia de pruebas"));
+ assert.ok(!JSON.stringify(updated).includes("demo-cliente1"));
+ assert.ok(updated.events.length<=50);
+ const html=await (await worker.fetch(make("/v2/operator"),f.env)).text();
+ assert.match(html,/id="operator-audit"/);
+ assert.match(html,/Actualizar bitácora/);
+ assert.match(html,/role/);
+});
+
+test("Bitácora no se abre con cookie de cliente, clave técnica ni rol reader/manager",async()=>{
+ const f=fixture(),{cookie}=await enroll(f),path="/v2/operator/api/audit";
+ const clientCookie="__Host-daurel_v2_pilot="+cookie.split("=")[1];
+ assert.equal((await worker.fetch(make(path,"GET",undefined,{Cookie:clientCookie}),f.env)).status,401);
+ assert.equal((await worker.fetch(make(path,"GET",undefined,tech()),f.env)).status,401);
+ assert.equal((await worker.fetch(make(path),f.env)).status,401);
+ for(const role of ["reader","manager"]){
+  f.sqlite.prepare("UPDATE operator_memberships SET role=?").run(role);
+  assert.equal((await worker.fetch(make(path,"GET",undefined,{Cookie:cookie}),f.env)).status,403,role);
+  assert.equal(roleAllows(role,path,"GET"),false);
+ }
+ f.sqlite.prepare("UPDATE operator_memberships SET role='owner'").run();
+ assert.equal((await worker.fetch(make(path,"GET",undefined,{Cookie:cookie}),f.env)).status,200);
+ assert.equal(roleAllows("owner",path,"GET"),true);
+ assert.equal(roleAllows("owner",path,"POST"),false);
+ f.sqlite.prepare("UPDATE operator_memberships SET status='disabled'").run();
+ assert.equal((await worker.fetch(make(path,"GET",undefined,{Cookie:cookie}),f.env)).status,401);
+});
+
+test("Bitácora en staging: antes de instalar el módulo administrativo no acepta clave de pruebas",async()=>{
+ const f=fixture(false);
+ const result=await worker.fetch(make("/v2/operator/api/audit","GET",undefined,tech()),f.env);
+ assert.equal(result.status,403);
+ assert.equal((await result.json()).success,false);
+ const otherEnv=fixture();
+ assert.equal((await worker.fetch(make("/v2/operator/api/audit","GET",undefined,tech()),
+  {...otherEnv.env,ENVIRONMENT:"production"})).status,403);
+});
