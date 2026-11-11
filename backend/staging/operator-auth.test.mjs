@@ -687,7 +687,7 @@ test("Staging 0006 sin instalar 0007: administrador sigue entrando, colaboradore
  const health=(await (await worker.fetch(make("/health"),f.env)).json());
  assert.equal(health.optional_operator_schema.ready,true);
  assert.equal(health.optional_team_schema.ready,false);
- assert.deepEqual(health.optional_team_schema.missing_tables,["operator_approved_emails"]);
+ assert.deepEqual(health.optional_team_schema.missing_tables,["operator_approved_emails","operator_case_assignments"]);
  const session=await (await worker.fetch(make("/v2/operator/auth/status","GET",undefined,{Cookie:cookie}),f.env)).json();
  assert.equal(session.authenticated,true);
  assert.equal(session.role,"owner");
