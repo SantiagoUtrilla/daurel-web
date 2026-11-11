@@ -138,6 +138,12 @@ export async function changeOperatorMember(req,env,actor){
    "UPDATE operator_sessions SET revoked_at=CURRENT_TIMESTAMP",
    "WHERE account_id=? AND revoked_at IS NULL",
   ].join(" ")).bind(id),
+  // Al desactivar a alguien se retiran todos sus expedientes asignados.
+  // Si se reactiva más adelante, el propietario debe asignarlos nuevamente.
+  env.DB.prepare([
+   "UPDATE operator_case_assignments SET revoked_at=CURRENT_TIMESTAMP",
+   "WHERE account_id=? AND ?='disabled' AND revoked_at IS NULL",
+  ].join(" ")).bind(id,status),
   // Invalidar también los códigos emitidos antes de una revocación.
   env.DB.prepare([
    "UPDATE operator_login_challenges SET consumed_at=CURRENT_TIMESTAMP",
