@@ -22,7 +22,7 @@ function fixture(operatorSchema=true){
  for(const m of [
   "0001_v2_core.sql","0002_optional_accounts.sql",
   "0003_case_invitations.sql","0004_followup_tasks.sql",
-  ...(operatorSchema?["0006_operator_identity.sql"]:[]),
+  ...(operatorSchema?["0006_operator_identity.sql","0007_operator_approvals.sql"]:[]),
  ]){
   sqlite.exec(readFileSync(new URL("../migrations/"+m,import.meta.url),"utf8"));
  }
@@ -552,7 +552,7 @@ test("Equipo: gestor aprobado inicia sesión con SU correo, nunca con clave del 
   {Cookie:owner}),f.env);
  assert.equal(add.status,201);
  const destination=await f.env.DB.prepare("SELECT verified_at FROM account_emails WHERE email_normalized=?").bind(email).first();
- assert.equal(destination.verified_at,null);
+ assert.equal(destination,null); // Todavía NO existe cuenta de correo verificada
  const sent={code:null,recipient:null};
  const mockMail=async(url,init)=>{
   assert.equal(url,"https://api.resend.com/emails");
