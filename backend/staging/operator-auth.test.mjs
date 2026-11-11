@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {DatabaseSync} from "node:sqlite";
 import {listOperatorTeam,addOperatorMember,changeOperatorMember} from "./operator-team.js";
+import {caseAccessSchemaReady} from "./operator-case-access.js";
 import vm from "node:vm";
 import {readFileSync} from "node:fs";
 import worker from "./worker.js";
@@ -730,4 +731,137 @@ test("Revocar autorización inutiliza un código pendiente incluso si el rol se 
  assert.equal(rejected.status,401);
  assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM operator_sessions WHERE account_id=?").get(accountId).n,0);
  assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM account_emails WHERE email_normalized=?").get(memberEmail).n,0);
+});
+
+
+async function authorizedMember(f,ownerCookie,email,role){
+ const created=await worker.fetch(make("/v2/operator/api/team/add","POST",{email,role},
+  {Cookie:ownerCookie}),f.env);
+ assert.equal(created.status,201);
+ const id=(await created.json()).account_id;
+ let code=null;
+ const now=Date.now()+61000;
+ const sent=await operatorStart(make("/v2/operator/auth/start","POST",{email}),
+  f.env,async(_,opts)=>{
+   code=/Tu código temporal es: (\d{6})/.exec(JSON.parse(opts.body).text)?.[1];
+   return {ok:true};
+  },now);
+ assert.equal(sent.status,202);
+ const token=(await sent.json()).challenge_id;
+ const verified=await operatorVerify(make("/v2/operator/auth/verify","POST",{
+  challenge_id:token,code,
+ }),f.env,now+150);
+ assert.equal(verified.status,200);
+ return {id,cookie:verified.headers.get("Set-Cookie").split(";")[0]};
+}
+function secondCase(f){
+ const id="22222222-2222-4222-8222-222222222222";
+ f.sqlite.prepare([
+  "INSERT INTO service_requests(request_id,public_folio,requester_party_id,summary,intake_channel)",
+  "VALUES (?,?,?,?,?)",
+ ].join(" ")).run(id,"DAU-TEST-SECOND","p1","Otro asunto ficticio","staging_demo");
+ return id;
+}
+test("Caso por caso: lector inicialmente ve cero asuntos, solo el que el owner le asigna",async()=>{
+ const f=fixture(),{cookie:owner}=await enroll(f),second=secondCase(f);
+ assert.equal(await caseAccessSchemaReady(f.env),true);
+ const {id:reader,cookie}=await authorizedMember(f,owner,"lectura@example.invalid","reader");
+ const q="/v2/operator/api/queue";
+ const before=await (await worker.fetch(make(q,"GET",undefined,{Cookie:cookie}),f.env)).json();
+ assert.equal(before.statistics.total,0);
+ assert.equal(before.cases.length,0);
+ const granted=await worker.fetch(make("/v2/operator/api/assignments/change","POST",{
+  account_id:reader,request_id:"11111111-1111-4111-8111-111111111111",allow:true,
+ },{Cookie:owner}),f.env);
+ assert.equal(granted.status,200);
+ const after=await (await worker.fetch(make(q,"GET",undefined,{Cookie:cookie}),f.env)).json();
+ assert.equal(after.statistics.total,1);
+ assert.equal(after.cases.length,1);
+ assert.equal(after.cases[0].public_folio,"DAU-TEST-ADMIN");
+ const history="/v2/operator/api/history/";
+ assert.equal((await worker.fetch(make(history+"11111111-1111-4111-8111-111111111111","GET",undefined,{Cookie:cookie}),f.env)).status,200);
+ assert.equal((await worker.fetch(make(history+second,"GET",undefined,{Cookie:cookie}),f.env)).status,403);
+ const ownerQueue=await (await worker.fetch(make(q,"GET",undefined,{Cookie:owner}),f.env)).json();
+ assert.equal(ownerQueue.statistics.total,2);
+ const allocations=await (await worker.fetch(make("/v2/operator/api/assignments/list","GET",undefined,{Cookie:owner}),f.env)).json();
+ assert.equal(allocations.assignments.length,1);
+ assert.equal(allocations.assignments[0].account_id,reader);
+ assert.equal((await worker.fetch(make("/v2/operator/api/assignments/list","GET",undefined,{Cookie:cookie}),f.env)).status,403);
+ const revoked=await worker.fetch(make("/v2/operator/api/assignments/change","POST",{
+  account_id:reader,request_id:"11111111-1111-4111-8111-111111111111",allow:false,
+ },{Cookie:owner}),f.env);
+ assert.equal(revoked.status,200);
+ assert.equal((await (await worker.fetch(make(q,"GET",undefined,{Cookie:cookie}),f.env)).json()).statistics.total,0);
+ assert.equal((await worker.fetch(make(history+"11111111-1111-4111-8111-111111111111","GET",undefined,{Cookie:cookie}),f.env)).status,403);
+});
+
+test("Gestor: acciones, seguimiento y citas SOLO sobre expediente asignado",async()=>{
+ const f=fixture(),{cookie:owner}=await enroll(f),second=secondCase(f);
+ const {id,cookie}=await authorizedMember(f,owner,"gestor-caso@example.invalid","manager");
+ const caseA="11111111-1111-4111-8111-111111111111";
+ const add=await worker.fetch(make("/v2/operator/api/assignments/change","POST",{
+  account_id:id,request_id:caseA,allow:true,
+ },{Cookie:owner}),f.env);
+ assert.equal(add.status,200);
+ const endpoint="/v2/operator/api/status";
+ const denied=await worker.fetch(make(endpoint,"POST",{
+  request_id:second,expected_status:"new",new_status:"contacted",
+ },{Cookie:cookie,"Idempotency-Key":"not-my-case-0001"}),f.env);
+ assert.equal(denied.status,403);
+ const valid=await worker.fetch(make(endpoint,"POST",{
+  request_id:caseA,expected_status:"new",new_status:"contacted",
+ },{Cookie:cookie,"Idempotency-Key":"my-case-status-01"}),f.env);
+ assert.equal(valid.status,200);
+ const recorded=await worker.fetch(make("/v2/operator/api/record","POST",{
+  request_id:caseA,expected_status:"contacted",action:"documents_requested",
+ },{Cookie:cookie,"Idempotency-Key":"my-case-record-01"}),f.env);
+ assert.equal(recorded.status,201);
+ const notRecorded=await worker.fetch(make("/v2/operator/api/record","POST",{
+  request_id:second,expected_status:"new",action:"documents_requested",
+ },{Cookie:cookie,"Idempotency-Key":"unassigned-event01"}),f.env);
+ assert.equal(notRecorded.status,403);
+ const agenda=(await (await worker.fetch(make("/v2/operator/api/followups","GET",undefined,{Cookie:owner}),f.env)).json());
+ const date=agenda.today;
+ const task=await worker.fetch(make("/v2/operator/api/followups/create","POST",{
+  request_id:caseA,action_code:"contact_again",due_date:date,
+ },{Cookie:cookie,"Idempotency-Key":"manager-task-01"}),f.env);
+ assert.equal(task.status,201);
+ const taskId=(await task.json()).task_id;
+ const taskB=await worker.fetch(make("/v2/operator/api/followups/create","POST",{
+  request_id:second,action_code:"contact_again",due_date:date,
+ },{Cookie:cookie,"Idempotency-Key":"manager-task-02"}),f.env);
+ assert.equal(taskB.status,403);
+ const completion=await worker.fetch(make("/v2/operator/api/followups/complete","POST",{
+  task_id:taskId,confirm:"confirmar-pendiente",
+ },{Cookie:cookie}),f.env);
+ assert.equal(completion.status,200);
+ assert.equal((await worker.fetch(make("/v2/operator/api/create","POST",{
+  client_key:"demo-cliente1",case_type:"civil",
+ },{Cookie:cookie,"Idempotency-Key":"manager-create-not-allowed"}),f.env)).status,403);
+ assert.equal((await worker.fetch(make("/v2/operator/api/invite","POST",{
+  request_id:caseA,confirm:"autorizar-envio-de-prueba",
+ },{Cookie:cookie}),f.env)).status,403);
+ const summary=f.sqlite.prepare(
+  "SELECT COUNT(*) AS n FROM request_events WHERE request_id=?"
+ ).get(second).n;
+ assert.equal(summary,0);
+});
+
+test("Agenda de lector sólo expone tareas de asuntos expresamente asignados",async()=>{
+ const f=fixture(),{cookie:owner}=await enroll(f),second=secondCase(f);
+ const {id,cookie}=await authorizedMember(f,owner,"lector-agenda@example.invalid","reader");
+ const today=(await (await worker.fetch(make("/v2/operator/api/followups","GET",undefined,{Cookie:owner}),f.env)).json()).today;
+ f.sqlite.prepare("INSERT INTO followup_tasks(task_id,request_id,action_code,due_date) VALUES (?,?,?,?)")
+  .run("followup-"+"a".repeat(64),"11111111-1111-4111-8111-111111111111","contact_again",today);
+ f.sqlite.prepare("INSERT INTO followup_tasks(task_id,request_id,action_code,due_date) VALUES (?,?,?,?)")
+  .run("followup-"+"b".repeat(64),second,"review_documents",today);
+ await worker.fetch(make("/v2/operator/api/assignments/change","POST",{
+  account_id:id,request_id:"11111111-1111-4111-8111-111111111111",allow:true,
+ },{Cookie:owner}),f.env);
+ const data=(await (await worker.fetch(make("/v2/operator/api/followups","GET",undefined,{Cookie:cookie}),f.env)).json());
+ assert.equal(data.count,1);
+ assert.equal(data.tasks[0].public_folio,"DAU-TEST-ADMIN");
+ assert.equal(data.summary.soon,1);
+ const ownerData=(await (await worker.fetch(make("/v2/operator/api/followups","GET",undefined,{Cookie:owner}),f.env)).json());
+ assert.equal(ownerData.count,2);
 });
