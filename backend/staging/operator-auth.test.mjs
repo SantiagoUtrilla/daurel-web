@@ -311,7 +311,73 @@ test("Pantalla: error al activar se muestra EN EL PANEL visible (regresión)",as
  await element("admin-setup-send").events.click();
  assert.equal(requests.at(-1).path,"/v2/operator/auth/setup/start");
  assert.equal(requests.at(-1).opts.method,"POST");
+ assert.equal(requests.at(-1).opts.body,"{}");
+ assert.equal(requests.at(-1).opts.headers["Content-Type"],"application/json");
  assert.match(element("admin-status").textContent,/Clave técnica de primera activación incorrecta/);
  assert.equal(element("admin-status").style.color,"#9b2635");
  assert.equal(element("legacy-login").hidden,true);
+});
+
+
+test("Chrome: activación con JSON {} explícito envía OTP correctamente",async()=>{
+ const f=fixture(),now=Date.now(),mail=providerCapture();
+ const req=make("/v2/operator/auth/setup/start","POST",{},tech());
+ assert.equal(req.body!==null,true);
+ const started=await operatorStart(req,f.env,mail.transport,now);
+ assert.equal(started.status,202);
+ const {challenge_id}=await started.json();
+ const verified=await operatorVerify(make("/v2/operator/auth/verify","POST",{
+  challenge_id,code:mail.code,
+ },tech()),f.env,now+100);
+ assert.equal(verified.status,200);
+ const cookie=verified.headers.get("Set-Cookie").split(";")[0];
+ const logout=await operatorLogout(make("/v2/operator/auth/logout","POST",{},
+  {Cookie:cookie}),f.env,now+250);
+ assert.equal(logout.status,200);
+ assert.equal((await logout.json()).authenticated,false);
+ assert.equal((await operatorIdentity(make("/v2/operator/api/queue","GET",undefined,{Cookie:cookie}),f.env,now+400)),null);
+});
+
+test("Cloudflare: POST con stream vacío permite activar; POST con datos extra no",async()=>{
+ const f=fixture(),now=Date.now(),mail=providerCapture();
+ const path="/v2/operator/auth/setup/start";
+ const req=new Request(ORIGIN+path,{
+  method:"POST",
+  headers:{Origin:ORIGIN,Authorization:"Bearer "+TECH},
+  body:"",
+ });
+ assert.equal(req.body!==null,true);
+ const started=await operatorStart(req,f.env,mail.transport,now);
+ assert.equal(started.status,202);
+ assert.equal((await started.json()).success,true);
+ const invalid=await operatorStart(make(path,"POST",{extra:"malicioso"},tech()),f.env,
+  async()=>{throw Error("No enviar correo");},now+61000);
+ assert.equal(invalid.status,400);
+ assert.match((await invalid.json()).message,/Formato/);
+});
+
+test("Protección CSRF: Referer de mismo origen solo se acepta con Sec-Fetch-Site, nunca cross-site",async()=>{
+ const now=Date.now(),path="/v2/operator/auth/setup/start";
+ const ref=ORIGIN+"/v2/operator?utm_source=chatgpt.com";
+ const check=async headers=>{
+  const f=fixture();
+  return operatorStart(new Request(ORIGIN+path,{method:"POST",headers,body:"{}"}),
+   f.env,providerCapture().transport,now);
+ };
+ const allowed=await check({
+  Authorization:"Bearer "+TECH,"Content-Type":"application/json",
+  Referer:ref,"Sec-Fetch-Site":"same-origin",
+ });
+ assert.equal(allowed.status,202);
+ const refused=await check({
+  Authorization:"Bearer "+TECH,"Content-Type":"application/json",
+  Referer:ref,"Sec-Fetch-Site":"cross-site",
+ });
+ assert.equal(refused.status,403);
+ assert.match((await refused.json()).message,/Origen/);
+ const attack=await check({
+  Authorization:"Bearer "+TECH,"Content-Type":"application/json",
+  Origin:"https://evil.invalid",Referer:ref,"Sec-Fetch-Site":"same-origin",
+ });
+ assert.equal(attack.status,403);
 });
