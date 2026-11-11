@@ -250,12 +250,17 @@ export async function getPilotSession(request,env,now=Date.now()) {
   if (!await schemaReady(env.DB)) {
     return reply({success:false,message:"Falta configurar cuentas de staging."},503);
   }
+  const hadSessionCookie=Boolean(parseCookie(request));
   const s=await sessionRecord(request,env,now);
   return reply(s ? {
     success:true,authenticated:true,
     recipient:s.email_normalized,account_id:s.account_id,
+    session_status:"active",
     access_to_real_cases:false,
-  } : {success:true,authenticated:false,access_to_real_cases:false});
+  } : {
+    success:true,authenticated:false,access_to_real_cases:false,
+    session_status:hadSessionCookie?"expired_or_revoked":"no_session_cookie",
+  });
 }
 
 export async function logoutPilotSession(request,env,now=Date.now()) {
