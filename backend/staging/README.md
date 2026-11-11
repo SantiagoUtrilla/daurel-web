@@ -263,7 +263,7 @@ Siguiente módulo antes de añadir colaboradores reales: alta y revocación de m
 
 ## 17. Administración individual de colaboradores (migración 0007; SOLO staging)
 
-El propietario ya utiliza `0006` y OTP de correo. Para que cada colaborador tenga su propio acceso sin simular que su correo ya fue verificado, es necesario el archivo **`backend/migrations/0007_operator_approvals.sql`**. Contiene exactamente **una tabla y un índice**; los registros existentes no se modifican. Instalar **solo** en Cloudflare D1 `daurel-staging` → Studio (Run all in sequence), nunca en `daurel-db`. No aplicar migraciones automáticas de Wrangler hasta conciliar su historial.
+El propietario ya utiliza `0006` y OTP de correo. Para que cada colaborador tenga su propio acceso sin simular que su correo ya fue verificado, es necesario el archivo **`backend/migrations/0007_operator_approvals.sql`**. Contiene **dos tablas y dos índices**: autorización de correo y asignaciones por expediente; los registros existentes no se modifican. Instalar **solo** en Cloudflare D1 `daurel-staging` → Studio (Run all in sequence), nunca en `daurel-db`. No aplicar migraciones automáticas de Wrangler hasta conciliar su historial.
 
 **Por qué 0007 es indispensable:** `account_emails.verified_at` en `0002` es `NOT NULL`. Autorizar a una persona no demuestra la propiedad del correo. `operator_approved_emails` almacena de forma independiente la autorización explícita del propietario; `account_emails` se crea únicamente tras validar el código enviado a esa dirección.
 
@@ -282,4 +282,10 @@ Rutas protegidas por sesión/rol owner:
 
 La configuración actual no crea invitaciones por correo ni un directorio corporativo y está limitada a 15 colaboradores en staging. Al no existir la tabla 0007, la sección de equipo muestra un aviso de instalación, **pero el inicio de sesión ya activado de la cuenta propietaria sigue funcionando**. El endpoint `/health` muestra `optional_team_schema.ready`.
 
-**Límites del piloto**: la asignación de rol es global a todos los expedientes ficticios. Antes de conectar casos reales, implementar permisos por cliente/asunto (mínimo necesario), control de acceso al historial, protecciones de correo, revocaciones auditables y una revisión de privacidad. No confundir autorización de colaborador con autorización de cliente.
+**Permisos por expediente ya implementados en staging**: el propietario puede usar `GET /v2/operator/api/assignments/list` y `POST /v2/operator/api/assignments/change` para dar o quitar un asunto a un colaborador autorizado. Lectores y gestores empiezan con **cero expedientes visibles** hasta recibir una asignación expresa. Bandeja, contadores, agenda, historial y cambios de estado comprueban permisos en el backend. El rol lector solo consulta; el gestor solo actúa sobre asuntos asignados y no puede crear casos generales ni enviar accesos. Desactivar una cuenta invalida sesiones, códigos OTP pendientes y asignaciones. **Antes de usar datos reales** siguen pendientes la revisión jurídica y de seguridad, permisos por equipo y responsables, pruebas de penetración, auditoría integral, respaldo y política de privacidad. No confundir la autorización de colaborador con la autorización de cliente.
+
+### Prueba segura de asignación por expediente
+
+Tras instalar `0007` solo en **daurel-staging**, abrir `/health` y verificar que `optional_team_schema.ready=true` con dos tablas: `operator_approved_emails` y `operator_case_assignments`. Entrar como propietario a `/v2/operator`. Autorizar un correo secundario **que controles** como lector. En cada expediente de prueba aparecerá «Acceso de colaboradores a este expediente» para dar o retirar permiso. Antes de asignar nada, el segundo usuario debe ver **cero** asuntos. Al asignar uno, verá solo ese folio y su agenda. Al retirarlo perderá acceso. En las pruebas automatizadas se han validado estas reglas sin enviar correos reales.
+
+**Pruebas GitHub Actions:** 107/107 aprobadas en la ejecución 43102749186 (rama de desarrollo; no es evidencia de seguridad productiva).
