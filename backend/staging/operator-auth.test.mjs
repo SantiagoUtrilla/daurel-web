@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {DatabaseSync} from "node:sqlite";
+import {listOperatorTeam,addOperatorMember,changeOperatorMember} from "./operator-team.js";
 import vm from "node:vm";
 import {readFileSync} from "node:fs";
 import worker from "./worker.js";
@@ -516,4 +517,164 @@ test("Bitácora en staging: antes de instalar el módulo administrativo no acept
  const otherEnv=fixture();
  assert.equal((await worker.fetch(make("/v2/operator/api/audit","GET",undefined,tech()),
   {...otherEnv.env,ENVIRONMENT:"production"})).status,403);
+});
+
+
+test("Equipo: propietario autoriza correo individual y no envía mensajes sin solicitud",async()=>{
+ const f=fixture(),{cookie}=await enroll(f);
+ const team=await worker.fetch(make("/v2/operator/api/team/list","GET",undefined,{Cookie:cookie}),f.env);
+ assert.equal(team.status,200);
+ assert.deepEqual((await team.json()).team,[]);
+ const add=await worker.fetch(make("/v2/operator/api/team/add","POST",{
+  email:"PERSONA.PRUEBA@example.invalid",role:"reader",
+ },{Cookie:cookie}),f.env);
+ assert.equal(add.status,201);
+ const added=await add.json();
+ assert.equal(added.email,"persona.prueba@example.invalid");
+ assert.equal(added.role,"reader");
+ const listing=await (await worker.fetch(make("/v2/operator/api/team/list","GET",undefined,{Cookie:cookie}),f.env)).json();
+ assert.equal(listing.team.length,1);
+ assert.equal(listing.team[0].verified,false);
+ assert.equal(listing.team[0].status,"active");
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM operator_sessions").get().n,1);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM account_request_access").get().n,0);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM account_party_access").get().n,0);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM operator_access_audit WHERE operation LIKE 'TEAM_AUTHORIZE%'").get().n,1);
+ assert.equal((await worker.fetch(make("/v2/operator/api/team/add","POST",{
+  email:"persona.prueba@example.invalid",role:"reader",
+ },{Cookie:cookie}),f.env)).status,409);
+});
+
+test("Equipo: gestor aprobado inicia sesión con SU correo, nunca con clave del dueño",async()=>{
+ const f=fixture(),{cookie:owner}=await enroll(f);
+ const email="gestor@example.invalid";
+ const add=await worker.fetch(make("/v2/operator/api/team/add","POST",{email,role:"manager"},
+  {Cookie:owner}),f.env);
+ assert.equal(add.status,201);
+ const destination=await f.env.DB.prepare("SELECT verified_at FROM account_emails WHERE email_normalized=?").bind(email).first();
+ assert.equal(destination.verified_at,null);
+ const sent={code:null,recipient:null};
+ const mockMail=async(url,init)=>{
+  assert.equal(url,"https://api.resend.com/emails");
+  const payload=JSON.parse(init.body);
+  sent.recipient=payload.to[0];
+  sent.code=/Tu código temporal es: (\d{6})/.exec(payload.text)?.[1];
+  assert.equal(payload.subject,"Código administrativo de DAUREL V2");
+  return {ok:true};
+ };
+ const now=Date.now()+61000;
+ const start=await operatorStart(make("/v2/operator/auth/start","POST",{email}),f.env,mockMail,now);
+ assert.equal(start.status,202);
+ assert.equal(sent.recipient,email);
+ assert.match(sent.code,/^\d{6}$/);
+ const code=(await start.json()).challenge_id;
+ assert.equal((await operatorVerify(make("/v2/operator/auth/verify","POST",{challenge_id:code,code:"000000"}),f.env,now+50)).status,401);
+ const verify=await operatorVerify(make("/v2/operator/auth/verify","POST",{challenge_id:code,code:sent.code}),f.env,now+100);
+ assert.equal(verify.status,200);
+ assert.equal((await verify.json()).role,"manager");
+ const memberCookie=verify.headers.get("Set-Cookie").split(";")[0];
+ assert.equal((await worker.fetch(make("/v2/operator/api/queue","GET",undefined,{Cookie:memberCookie}),f.env)).status,200);
+ assert.equal((await worker.fetch(make("/v2/operator/api/team/list","GET",undefined,{Cookie:memberCookie}),f.env)).status,403);
+ assert.equal((await worker.fetch(make("/v2/operator/api/audit","GET",undefined,{Cookie:memberCookie}),f.env)).status,403);
+ assert.equal((await worker.fetch(make("/v2/operator/api/telegram/status","GET",undefined,{Cookie:memberCookie}),f.env)).status,403);
+ assert.equal((await f.env.DB.prepare("SELECT verified_at FROM account_emails WHERE email_normalized=?").bind(email).first()).verified_at!==null,true);
+ const ownerStill=(await (await worker.fetch(make("/v2/operator/auth/status","GET",undefined,{Cookie:owner}),f.env)).json());
+ assert.equal(ownerStill.role,"owner");
+});
+
+test("Equipo: desactivar revoca sesión inmediatamente; correo desactivado no recibe más OTP",async()=>{
+ const f=fixture(),{cookie:owner}=await enroll(f);
+ const email="revocable@example.invalid";
+ const created=await addOperatorMember(make("/v2/operator/api/team/add","POST",
+  {email,role:"manager"}),f.env,await operatorIdentity(make("/v2/operator/api/queue","GET",undefined,{Cookie:owner}),f.env));
+ assert.equal(created.status,201);
+ const id=(await created.json()).account_id;
+ let code=null;
+ const now=Date.now()+60000;
+ const sent=await operatorStart(make("/v2/operator/auth/start","POST",{email}),f.env,async(_,init)=>{
+  code=/Tu código temporal es: (\d{6})/.exec(JSON.parse(init.body).text)?.[1];
+  return {ok:true};
+ },now);
+ assert.equal(sent.status,202);
+ const challenge=(await sent.json()).challenge_id;
+ const verified=await operatorVerify(make("/v2/operator/auth/verify","POST",{challenge_id:challenge,code}),f.env,now+250);
+ assert.equal(verified.status,200);
+ const personal=verified.headers.get("Set-Cookie").split(";")[0];
+ assert.equal((await worker.fetch(make("/v2/operator/api/queue","GET",undefined,{Cookie:personal}),f.env)).status,200);
+ const disabled=await worker.fetch(make("/v2/operator/api/team/change","POST",{
+  account_id:id,role:"reader",status:"disabled",
+ },{Cookie:owner}),f.env);
+ assert.equal(disabled.status,200);
+ assert.equal((await worker.fetch(make("/v2/operator/api/queue","GET",undefined,{Cookie:personal}),f.env)).status,401);
+ assert.equal(f.sqlite.prepare("SELECT revoked_at FROM operator_sessions WHERE account_id=?").get(id).revoked_at!==null,true);
+ const rejected=await operatorStart(make("/v2/operator/auth/start","POST",{email}),f.env,
+  async()=>{throw Error("No enviar OTP de suspendido");},now+61000);
+ assert.equal(rejected.status,403);
+ const restored=await changeOperatorMember(make("/v2/operator/api/team/change","POST",{
+  account_id:id,role:"reader",status:"active",
+ }),f.env,await operatorIdentity(make("/v2/operator/api/queue","GET",undefined,{Cookie:owner}),f.env));
+ assert.equal(restored.status,200);
+ const newMail={code:null};
+ const newStart=await operatorStart(make("/v2/operator/auth/start","POST",{email}),f.env,async(_,init)=>{
+  newMail.code=/Tu código temporal es: (\d{6})/.exec(JSON.parse(init.body).text)?.[1];
+  return {ok:true};
+ },now+122000);
+ assert.equal(newStart.status,202);
+ const readerLogin=await operatorVerify(make("/v2/operator/auth/verify","POST",{
+  challenge_id:(await newStart.json()).challenge_id,code:newMail.code,
+ }),f.env,now+123000);
+ assert.equal((await readerLogin.json()).role,"reader");
+ const readerCookie=readerLogin.headers.get("Set-Cookie").split(";")[0];
+ assert.equal((await worker.fetch(make("/v2/operator/api/queue","GET",undefined,{Cookie:readerCookie}),f.env)).status,200);
+ assert.equal((await worker.fetch(make("/v2/operator/api/create","POST",{
+  client_key:"demo-cliente1",case_type:"civil"
+ },{Cookie:readerCookie,"Idempotency-Key":"reader-denied-new"}),f.env)).status,403);
+});
+
+test("Equipo: no se puede agregar propietario, elevar roles ni editar desde cliente o clave técnica",async()=>{
+ const f=fixture(),{cookie:owner}=await enroll(f);
+ const listPath="/v2/operator/api/team/list";
+ assert.equal((await worker.fetch(make(listPath,"GET",undefined,tech()),f.env)).status,401);
+ assert.equal((await worker.fetch(make(listPath,"GET",undefined,{
+  Cookie:"__Host-daurel_v2_pilot="+owner.split("=")[1],
+ }),f.env)).status,401);
+ assert.equal((await worker.fetch(make("/v2/operator/api/team/add","POST",{
+  email:"daurelcontact@gmail.com",role:"reader",
+ },{Cookie:owner}),f.env)).status,400);
+ for(const role of ["owner","admin","superuser",""]){
+  const r=await worker.fetch(make("/v2/operator/api/team/add","POST",{
+   email:"persona@example.invalid",role,
+  },{Cookie:owner}),f.env);
+  assert.equal(r.status,400,role);
+ }
+ assert.equal((await worker.fetch(make("/v2/operator/api/team/add","POST",{
+  email:"colab@example.invalid",role:"reader",
+ },{Cookie:owner,Origin:"https://evil.invalid"}),f.env)).status,403);
+ const id=(await (await worker.fetch(make("/v2/operator/api/team/add","POST",{
+  email:"colab@example.invalid",role:"reader",
+ },{Cookie:owner}),f.env)).json()).account_id;
+ const self=f.sqlite.prepare("SELECT account_id FROM operator_memberships WHERE role='owner'").get().account_id;
+ assert.equal((await worker.fetch(make("/v2/operator/api/team/change","POST",{
+  account_id:self,role:"reader",status:"disabled",
+ },{Cookie:owner}),f.env)).status,400);
+ assert.equal((await worker.fetch(make("/v2/operator/api/team/change","POST",{
+  account_id:id,role:"owner",status:"active",
+ },{Cookie:owner}),f.env)).status,400);
+ assert.equal(f.sqlite.prepare("SELECT role,status FROM operator_memberships WHERE account_id=?").get(self).role,"owner");
+ assert.equal(f.sqlite.prepare("SELECT role,status FROM operator_memberships WHERE account_id=?").get(id).role,"reader");
+});
+
+test("Equipo: correo no autorizado no puede obtener código ni activar membresía",async()=>{
+ const f=fixture();
+ await enroll(f);
+ const never=await operatorStart(make("/v2/operator/auth/start","POST",{
+  email:"no-autorizado@example.invalid",
+ }),f.env,async()=>{throw Error("No se debe enviar un mensaje");},Date.now()+60000);
+ assert.equal(never.status,403);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM operator_login_challenges WHERE email_normalized=?").get("no-autorizado@example.invalid").n,0);
+ const html=await (await worker.fetch(make("/v2/operator"),f.env)).text();
+ assert.match(html,/Administrar colaboradores/);
+ assert.match(html,/id="operator-email"/);
+ assert.match(html,/id="team-add"/);
+ assert.match(html,/\/v2\/operator\/api\/team\/list/);
 });
