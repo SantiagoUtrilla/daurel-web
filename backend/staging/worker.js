@@ -1,5 +1,6 @@
 import { demoPageResponse } from "./demo-page.js";
 import {operatorPageResponse} from "./operator-page.js";
+import {listFollowups,createFollowup,changeFollowup} from "./followup-api.js";
 import {operatorActionCatalog,operatorRecordAction} from "./operator-actions.js";
 import {operatorQueue,operatorUpdateStatus,operatorSendInvitation} from "./operator-api.js";
 import { adminPageResponse } from "./admin-page.js";
@@ -149,6 +150,10 @@ export default {
     if(request.method==="GET" && url.pathname==="/v2/demo/invitations"){
       return invitationPageResponse();
     }
+    const isFollowupList=request.method==="GET" && url.pathname==="/v2/operator/api/followups";
+    const isFollowupCreate=request.method==="POST" && url.pathname==="/v2/operator/api/followups/create";
+    const isFollowupComplete=request.method==="POST" && url.pathname==="/v2/operator/api/followups/complete";
+    const isFollowupCancel=request.method==="POST" && url.pathname==="/v2/operator/api/followups/cancel";
     const isOperatorActions=request.method==="GET" && url.pathname==="/v2/operator/api/actions";
     const isOperatorRecord=request.method==="POST" && url.pathname==="/v2/operator/api/record";
     const isOperatorQueue=request.method==="GET" && url.pathname==="/v2/operator/api/queue";
@@ -177,7 +182,7 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -190,6 +195,10 @@ export default {
     }
 
     try {
+      if(isFollowupList)return await listFollowups(env);
+      if(isFollowupCreate)return await createFollowup(request,env);
+      if(isFollowupComplete)return await changeFollowup(request,env,"complete");
+      if(isFollowupCancel)return await changeFollowup(request,env,"cancel");
       if(isOperatorActions)return operatorActionCatalog();
       if(isOperatorRecord)return await operatorRecordAction(request,env);
       if(isOperatorQueue)return await operatorQueue(env);
