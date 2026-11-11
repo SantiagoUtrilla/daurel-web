@@ -1,21 +1,39 @@
--- DAUREL V2 | Auditoría agregada (únicamente lectura).
--- Base: daurel-db / Cloudflare D1 Studio.
--- NO muestra ninguna fila individual, ni datos de personas, teléfono, folios,
--- notas ni descripciones. Solo recuentos para preparar una migración segura.
--- No utilizar esta consulta si hay que conservar anonimato de grupos pequeños:
--- sus conteos son visibles solo para el administrador autorizado.
+-- DAUREL V2 | Revisión de estructura y conteos de leads V1.
+-- SOLO LECTURA en Cloudflare D1 -> daurel-db -> Studio.
+-- Una única instrucción SELECT, sin UNION ALL ni PRAGMA tabular.
+-- No devuelve filas de personas, nombres, teléfonos, folios ni descripciones.
 
-SELECT 'total_solicitudes' AS comprobacion, CAST(COUNT(*) AS TEXT) AS resultado FROM leads
-UNION ALL
-SELECT 'folios_distintos', CAST(COUNT(DISTINCT request_id) AS TEXT) FROM leads
-UNION ALL
-SELECT 'folios_nulos_o_vacios', CAST(COALESCE(SUM(CASE WHEN request_id IS NULL OR trim(request_id) = '' THEN 1 ELSE 0 END),0) AS TEXT) FROM leads
-UNION ALL
-SELECT 'con_consentimiento_sin_fecha', CAST(COALESCE(SUM(CASE WHEN privacy_consent = 1 AND (privacy_consent_at IS NULL OR trim(privacy_consent_at) = '') THEN 1 ELSE 0 END),0) AS TEXT) FROM leads
-UNION ALL
-SELECT 'categoria_estado:' || COALESCE(status, '(nulo)'), CAST(COUNT(*) AS TEXT) FROM leads GROUP BY status
-UNION ALL
-SELECT 'categoria_urgencia:' || COALESCE(urgency, '(nulo)'), CAST(COUNT(*) AS TEXT) FROM leads GROUP BY urgency
-UNION ALL
-SELECT 'categoria_prioridad:' || COALESCE(priority, '(nulo)'), CAST(COUNT(*) AS TEXT) FROM leads GROUP BY priority
-ORDER BY comprobacion;
+SELECT
+  COUNT(*) AS total_solicitudes,
+  COUNT(DISTINCT request_id) AS folios_distintos,
+  COALESCE(SUM(
+    CASE WHEN request_id IS NULL OR TRIM(request_id) = ''
+         THEN 1 ELSE 0 END
+  ), 0) AS folios_vacios,
+  COALESCE(SUM(
+    CASE WHEN privacy_consent = 1
+          AND (privacy_consent_at IS NULL OR TRIM(privacy_consent_at) = '')
+         THEN 1 ELSE 0 END
+  ), 0) AS consentimientos_sin_fecha,
+  (
+    SELECT GROUP_CONCAT(etiqueta || ': ' || cantidad, ' | ')
+    FROM (
+      SELECT COALESCE(status, '(nulo)') AS etiqueta, COUNT(*) AS cantidad
+      FROM leads GROUP BY status
+    )
+  ) AS estados,
+  (
+    SELECT GROUP_CONCAT(etiqueta || ': ' || cantidad, ' | ')
+    FROM (
+      SELECT COALESCE(urgency, '(nulo)') AS etiqueta, COUNT(*) AS cantidad
+      FROM leads GROUP BY urgency
+    )
+  ) AS urgencias,
+  (
+    SELECT GROUP_CONCAT(etiqueta || ': ' || cantidad, ' | ')
+    FROM (
+      SELECT COALESCE(priority, '(nulo)') AS etiqueta, COUNT(*) AS cantidad
+      FROM leads GROUP BY priority
+    )
+  ) AS prioridades
+FROM leads;
