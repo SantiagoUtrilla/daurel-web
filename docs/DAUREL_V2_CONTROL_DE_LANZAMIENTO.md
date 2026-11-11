@@ -1,0 +1,51 @@
+# DAUREL V2 · Control de lanzamiento y pendientes críticos
+
+Actualizado: 11 de noviembre de 2026. Rama de desarrollo: `architecture/daurel-v2`. Entorno de pruebas: `daurel-staging`.
+
+**Regla principal:** DAUREL V1 en `https://daurel.com.mx` continúa atendiendo solicitudes. No modificar `main`, el Worker `daurel-backend`, la base `daurel-db` ni las credenciales de Telegram V1 hasta validar el corte y su reversión. La función pública de pedir orientación **seguirá siendo gratuita y sin cuenta obligatoria**.
+
+## Terminados y validados en pruebas
+
+- [x] Estructura V2 base y laboratorio sintético de asuntos, partes y expedientes.
+- [x] Acceso opcional de cliente por código de correo y permisos explícitos por expediente, no por mera coincidencia de teléfono o correo.
+- [x] Centro de operaciones en navegador y celular con estados, actuaciones, historial, pendientes y semáforo.
+- [x] Cuentas administrativas separadas de las de clientes: activación de propietario y acceso por OTP; el usuario confirmó entrada, salida y reingreso.
+- [x] Bitácora de acciones confirmadas, visible exclusivamente para el propietario.
+- [x] Código para alta de colaboradores `reader` y `manager`, revocación de sesiones, OTP individual y autorización previa distinta de verificación. **104/104 pruebas GitHub Actions aprobadas en ejecución 43101142950.**
+- [x] Auditoría estructural de V1 por consultas solo lectura: tabla `leads` con 29 columnas.
+- [x] Auditoría agregada de V1: **3 solicitudes, 3 folios distintos, 0 vacíos, 0 aceptaciones sin fecha**. Valores de estado `new`, `contacted`; urgencia `soon`, `48h`, `no`; prioridad `normal`.
+- [x] Conversor y ensayo de migración V1→V2 con **solo registros ficticios**, transacciones, detección de cambios e idempotencia.
+- [x] Telegram V2: programación, resumen y vista previa desarrollados; envío **desactivado** y conexión final diferida para no duplicar bot/tokens.
+
+## Activación restante del equipo (solo staging)
+
+- [ ] Ejecutar **una vez** `backend/migrations/0007_operator_approvals.sql` exclusivamente en **daurel-staging**. Crea una tabla y un índice, no toca cuentas existentes ni `daurel-db`.
+- [ ] Verificar `/health` → `optional_team_schema.ready: true`.
+- [ ] Recargar `/v2/operator` y comprobar sección «Administrar colaboradores» con sesión owner.
+- [ ] Probar con **un segundo correo de prueba controlado** antes de invitar a alguien real. Su acceso no debe mostrarse como verificado antes de usar OTP, ni puede ver la bitácora general. Al desactivarlo, su sesión debe perder acceso.
+
+## Bloqueadores del lanzamiento real (P0)
+
+- [ ] **Privacidad y controles por caso:** rol global no sustituye una autorización por expediente, profesional y finalidad. Diseñar alcance mínimo, tratamiento de datos sensibles, conservación, revocación y bitácora de accesos a contenido.
+- [ ] **Backend V1 y respaldo:** revisar el código vigente de `daurel-backend` y su estructura real. Hacer y comprobar respaldo restaurable de `daurel-db`; garantizar que solicitudes recibidas durante el corte no se pierdan.
+- [ ] **Importación privada reversible:** conservar los 29 campos, folio, ID histórico, fechas, consentimiento y datos operativos; no inventar eventos antiguos a partir del contador de seguimientos. Activar `0005_legacy_lead_details.sql` solo cuando el plan esté revisado y el entorno lo requiera. Conciliar conteos 3→3 al momento del respaldo, comprobando cambios desde el último recuento.
+- [ ] **Formulario real:** enlazar la captura existente con V2 sin exigir cuenta, conservar Turnstile y limitación de abuso, revisar validaciones y privacidad. Probar varias solicitudes consecutivas y casos de fallo.
+- [ ] **Portal de cliente real y diseño final:** eliminar textos de laboratorio y correo fijo de pruebas, permitir correos de cada cliente y acceso únicamente a asuntos autorizados, conservar la identidad gráfica oficial sin rediseñar el logotipo.
+- [ ] **Endurecimiento de autenticación:** correo individual, autorización/recuperación de administradores, CSRF, límites por destinatario e IP, auditoría de fallos y revisión de seguridad. No asumir que OTP de email es protección suficiente para documentación confidencial.
+- [ ] **Plan de corte + reversión:** ventanas, backup verificado, matriz de pruebas, medición de errores, prueba de restauración y procedimiento para regresar a V1.
+- [ ] **Telegram definitivo:** solo al final, reutilizar el bot vigente V1 cuando sea seguro y configurar un único emisor. Verificar entrega sin duplicar avisos.
+
+## Lo que no está terminado
+
+El laboratorio de pruebas no equivale a la versión productiva. **No hay sincronización automática con WhatsApp personal**, ni app móvil nativa, ni importación de registros reales, ni recuperación histórica de actuaciones que V1 no almacenó. No prometerlo al usuario final.
+
+## Orden de ejecución optimizado
+
+1. Activar y comprobar `0007` en staging (una sola intervención en D1).
+2. Construir autorización *por caso* de colaboradores y reforzar API/portal.
+3. Preparar integración real con V1 y respaldo controlado.
+4. Completar pruebas con datos ficticios, interfaz definitiva y contrato de privacidad.
+5. Hacer prueba de corte y reversión.
+6. Autorizar despliegue real y activar Telegram sin repetición.
+
+**Política de seguridad:** `daurel-db` y `main` no deben ser alterados por pruebas. Secretos solo en Cloudflare, nunca en GitHub o chats. Todo cambio de producción requiere autorización y respaldo verificado.
