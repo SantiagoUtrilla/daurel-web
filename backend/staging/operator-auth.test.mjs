@@ -264,3 +264,54 @@ test("Pantalla administrativa compilable: los scripts integrados no tienen error
  assert.match(html,/\/v2\/operator\/api\/create/);
  assert.match(html,/\/v2\/operator\/api\/history\//);
 });
+
+
+test("Pantalla: error al activar se muestra EN EL PANEL visible (regresión)",async()=>{
+ const f=fixture();
+ const html=await (await worker.fetch(make("/v2/operator"),f.env)).text();
+ const source=/<script>([\s\S]*?)<\/script>/.exec(html)?.[1];
+ assert.ok(source);
+ const nodes=new Map();
+ const element=id=>{
+  if(!nodes.has(id)){
+   nodes.set(id,{
+    id,value:"",hidden:false,disabled:false,textContent:"",className:"",
+    style:{},events:{},children:[],replaceChildren(){this.children=[]},
+    append(){},setAttribute(){},focus(){},
+    addEventListener(type,callback){this.events[type]=callback},
+   });
+  }
+  return nodes.get(id);
+ };
+ const requests=[];
+ const mockFetch=async(path,opts)=>{
+  requests.push({path,opts});
+  if(path==="/v2/operator/auth/status")
+   return {ok:true,status:200,json:async()=>({
+    success:true,schema_ready:true,enrolled:false,authenticated:false,
+    message:"Primera activación: clave técnica y código de correo.",
+   })};
+  if(path==="/v2/operator/auth/setup/start")
+   return {ok:false,status:401,json:async()=>({
+    success:false,message:"Clave técnica de primera activación incorrecta.",
+   })};
+  throw Error("Solicitud de red inesperada: "+path);
+ };
+ vm.runInNewContext(source,{
+  document:{getElementById:element,addEventListener(){}},
+  fetch:mockFetch,crypto:globalThis.crypto,
+  console,confirm:()=>true,
+ },{filename:"daurel-operator-ui-regression.js"});
+ await new Promise(resolve=>setImmediate(resolve)); // authState inicial
+ assert.equal(element("legacy-login").hidden,true);
+ assert.equal(element("admin-access").hidden,false);
+ assert.equal(element("admin-setup").hidden,false);
+ element("enroll-key").value=TECH;
+ assert.equal(typeof element("admin-setup-send").events.click,"function");
+ await element("admin-setup-send").events.click();
+ assert.equal(requests.at(-1).path,"/v2/operator/auth/setup/start");
+ assert.equal(requests.at(-1).opts.method,"POST");
+ assert.match(element("admin-status").textContent,/Clave técnica de primera activación incorrecta/);
+ assert.equal(element("admin-status").style.color,"#9b2635");
+ assert.equal(element("legacy-login").hidden,true);
+});
