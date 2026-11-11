@@ -157,3 +157,17 @@ test("Cliente simulado: rehúsa operar con ENVIRONMENT diferente a staging",asyn
  const p=await worker.fetch(req("/v2/client"),{...env,ENVIRONMENT:"production"});
  assert.equal(p.status,403);
 });
+
+
+test("Portal cliente actualizado: estado humano, botón refrescar y sincronía al volver al celular",async()=>{
+ const {env}=await fixture();
+ const response=await worker.fetch(req("/v2/client"),env);
+ assert.equal(response.status,200);
+ const page=await response.text();
+ assert.match(page,/id="refresh-cases"/);
+ assert.match(page,/visibilitychange/);
+ assert.match(page,/Contacto confirmado/);
+ assert.match(page,/En atención/);
+ assert.match(page,/Recibido/);
+ assert.ok(!page.includes("STAGING_TEST_TOKEN"));
+});
