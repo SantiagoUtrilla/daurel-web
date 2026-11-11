@@ -27,8 +27,8 @@ function configured(env){
    env.AUTH_EMAIL_FROM==="acceso@daurel.com.mx";
 }
 function noBody(request){
- return request.headers.get("Content-Length")===null ||
-  request.headers.get("Content-Length")==="0";
+ // Content-Length puede faltar incluso si el cuerpo está presente.
+ return request.body===null;
 }
 
 // Puerta de entrada desde navegador para correo FIJO, jamás aceptamos un email enviado por cliente.
