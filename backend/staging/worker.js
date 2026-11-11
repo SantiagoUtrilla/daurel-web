@@ -1,6 +1,9 @@
 import { demoPageResponse } from "./demo-page.js";
 import {operatorPageResponse} from "./operator-page.js";
 import {operatorAuditLog} from "./operator-audit.js";
+import {
+ caseAccessSchemaReady,assignedCase,listCaseAssignments,changeCaseAssignment,
+} from "./operator-case-access.js";
 import {listOperatorTeam,addOperatorMember,changeOperatorMember} from "./operator-team.js";
 import {
  operatorSchemaReady,operatorEnrolled,operatorIdentity,operatorStatus,
@@ -35,7 +38,7 @@ import {
   authorizeDemo, createDemoRequest, listDemoClientRequests, getDemoAdminOverview, json,
 } from "./demo-api.js";
 
-const OPTIONAL_TEAM_TABLES=["operator_approved_emails"];
+const OPTIONAL_TEAM_TABLES=["operator_approved_emails","operator_case_assignments"];
 const OPTIONAL_OPERATOR_TABLES=[
   "operator_memberships","operator_login_challenges","operator_sessions","operator_access_audit",
 ];
@@ -213,6 +216,8 @@ export default {
     const operatorHistoryMatch=request.method==="GET"
       ? /^\/v2\/operator\/api\/history\/([0-9a-f-]{36})$/i.exec(url.pathname)
       : null;
+    const isAssignmentsList=request.method==="GET" && url.pathname==="/v2/operator/api/assignments/list";
+    const isAssignmentsChange=request.method==="POST" && url.pathname==="/v2/operator/api/assignments/change";
     const isOperatorTeamList=request.method==="GET" && url.pathname==="/v2/operator/api/team/list";
     const isOperatorTeamAdd=request.method==="POST" && url.pathname==="/v2/operator/api/team/add";
     const isOperatorTeamChange=request.method==="POST" && url.pathname==="/v2/operator/api/team/change";
@@ -243,7 +248,7 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover && !isOperatorCreate && !operatorHistoryMatch && !isOperatorAudit && !isOperatorTeamList && !isOperatorTeamAdd && !isOperatorTeamChange) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover && !isOperatorCreate && !operatorHistoryMatch && !isOperatorAudit && !isOperatorTeamList && !isOperatorTeamAdd && !isOperatorTeamChange && !isAssignmentsList && !isAssignmentsChange) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -268,23 +273,50 @@ export default {
         return json({success:false,message:"Acceso no autorizado."},401);
     }
 
+    // Un colaborador solo puede acceder a los asuntos asignados por el owner.
+    // Esta comprobación se realiza ANTES de que ninguna ruta lea o escriba D1.
+    if(operatorActor&&operatorActor.role!=="owner"){
+      if(!await caseAccessSchemaReady(env))
+        return json({success:false,message:"La autorización por expediente no está instalada."},503);
+      let targetId=null;
+      if(operatorHistoryMatch)targetId=operatorHistoryMatch[1];
+      else if(isOperatorStatus||isOperatorRecord||isFollowupCreate||isFollowupComplete||isFollowupCancel){
+        const raw=await request.clone().text();
+        if(raw.length>1024)return json({success:false,message:"Solicitud demasiado grande."},413);
+        let input;
+        try{input=JSON.parse(raw)}catch{return json({success:false,message:"Solicitud inválida."},400)}
+        if(isFollowupComplete||isFollowupCancel){
+          if(typeof input?.task_id!=="string"||!/^followup-[0-9a-f]{64}$/.test(input.task_id))
+            return json({success:false,message:"Pendiente inválido."},400);
+          const item=await env.DB.prepare(
+            "SELECT request_id FROM followup_tasks WHERE task_id=?"
+          ).bind(input.task_id).first();
+          targetId=item?.request_id||null;
+        }else targetId=input?.request_id;
+      }
+      if(targetId&&!await assignedCase(env,operatorActor,targetId))
+        return json({success:false,message:"Este expediente no está asignado a tu cuenta."},403);
+    }
+
     try {
       const dispatch=async()=>{
       if(isTelegramStatus)return await telegramConnectionStatus(env);
       if(isTelegramTest)return await testTelegramConnection(request,env);
       if(isTelegramDiscover)return await discoverTelegramChat(request,env);
       if(isAlertPreview)return await previewDailyAlerts(env);
-      if(isFollowupList)return await listFollowups(env);
+      if(isFollowupList)return await listFollowups(env,Date.now(),operatorActor);
       if(isFollowupCreate)return await createFollowup(request,env);
       if(isFollowupComplete)return await changeFollowup(request,env,"complete");
       if(isFollowupCancel)return await changeFollowup(request,env,"cancel");
       if(isOperatorActions)return operatorActionCatalog();
       if(isOperatorRecord)return await operatorRecordAction(request,env);
+      if(isAssignmentsList)return await listCaseAssignments(env,operatorActor);
+      if(isAssignmentsChange)return await changeCaseAssignment(request,env,operatorActor);
       if(isOperatorTeamList)return await listOperatorTeam(env,operatorActor);
       if(isOperatorTeamAdd)return await addOperatorMember(request,env,operatorActor);
       if(isOperatorTeamChange)return await changeOperatorMember(request,env,operatorActor);
       if(isOperatorAudit)return await operatorAuditLog(env,operatorActor);
-      if(isOperatorQueue)return await operatorQueue(env);
+      if(isOperatorQueue)return await operatorQueue(env,operatorActor);
       if(isOperatorCreate)return await operatorCreate(request,env);
       if(operatorHistoryMatch)return await operatorHistory(env,operatorHistoryMatch[1]);
       if(isOperatorStatus)return await operatorUpdateStatus(request,env);
