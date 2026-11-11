@@ -16,7 +16,7 @@ const TYPES=Object.freeze({
 });
 const CONFIRM="emitir-invitacion-ficticia";
 const TTL=24*60*60*1000;
-const WINDOW=15*60*1000;
+const WINDOW=30*1000; // Solo laboratorio: treinta segundos por asunto.
 function out(data,status=200){
  const r=json(data,status);r.headers.set("X-Robots-Tag","noindex, nofollow");return r;
 }
@@ -81,7 +81,7 @@ export async function issuePilotInvite(request,env,transport=fetch,now=Date.now(
   ).run();
  }catch(e){
   if(/UNIQUE|constraint failed/i.test(String(e))){
-   return out({success:false,message:"Ya se emitió una invitación para este asunto. Espera 15 minutos."},429);
+   return out({success:false,message:"Ya se emitió una invitación para este asunto. Reintenta en unos segundos (límite de 30 segundos por asunto)."},429);
   }
   throw e;
  }
