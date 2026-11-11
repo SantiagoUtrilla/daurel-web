@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {DatabaseSync} from "node:sqlite";
 import {readFileSync} from "node:fs";
 import {operatorQueue,operatorUpdateStatus,operatorSendInvitation} from "./operator-api.js";
+import {operatorActionCatalog,operatorRecordAction} from "./operator-actions.js";
 import {newSessionToken,tokenHash} from "./auth-core.js";
 import worker from "./worker.js";
 
@@ -165,4 +166,93 @@ test("Invitación de operador selecciona UUID exacto, deja aparte otros asuntos 
  assert.ok(!JSON.stringify(view).includes("DAU-TEST-0003"));
  const same=await worker.fetch(req("/v2/client/api/accept","POST",{code:invitationLink},{tech:false,cookie:f.cookie}),f.env);
  assert.equal(same.status,401);
+});
+
+
+test("Catálogo de actuaciones: intento no es contacto, respuesta sí, seguimiento sin cambio",async()=>{
+ const f=await fixture(),id=f.ids[0];
+ const catalog=await (await operatorActionCatalog()).json();
+ assert.equal(catalog.actions.length,16);
+ assert.equal(catalog.actions.find(a=>a.id==="whatsapp_attempt").auto_to,undefined);
+ assert.equal(catalog.actions.find(a=>a.id==="reply_received").auto_to,"contacted");
+
+ const post=(action,expected,idem)=>operatorRecordAction(req("/v2/operator/api/record","POST",{
+  request_id:id,expected_status:expected,action,
+ },{idem}),f.env);
+ const first=await post("whatsapp_attempt","new","act-whats-00001");
+ assert.equal(first.status,201);
+ const tryBody=await first.json();
+ assert.equal(tryBody.automatic_status_change,false);
+ assert.equal(tryBody.status,"new");
+ assert.equal(f.sqlite.prepare("SELECT status FROM service_requests WHERE request_id=?").get(id).status,"new");
+
+ const attemptAgain=await post("whatsapp_attempt","new","act-whats-00001");
+ assert.equal(attemptAgain.status,200);
+ assert.equal((await attemptAgain.json()).replayed,true);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM request_events WHERE event_type='operator_whatsapp_attempt'").get().n,1);
+ assert.equal((await post("reply_received","new","act-whats-00001")).status,409);
+
+ const responded=await post("reply_received","new","act-whats-00002");
+ assert.equal(responded.status,201);
+ assert.equal((await responded.json()).automatic_status_change,true);
+ assert.equal(f.sqlite.prepare("SELECT status FROM service_requests WHERE request_id=?").get(id).status,"contacted");
+
+ const requestDocs=await post("documents_requested","contacted","act-docs-00003");
+ assert.equal(requestDocs.status,201);
+ assert.equal((await requestDocs.json()).status,"contacted");
+ const receipt=await post("documents_received","contacted","act-docs-00004");
+ assert.equal(receipt.status,201);
+ assert.equal((await receipt.json()).automatic_status_change,false);
+ const reviewed=await post("documents_reviewed","contacted","act-docs-00005");
+ assert.equal(reviewed.status,201);
+ assert.equal((await reviewed.json()).status,"in_attention");
+ assert.equal(f.sqlite.prepare("SELECT status FROM service_requests WHERE request_id=?").get(id).status,"in_attention");
+
+ const followup=await post("followup_done","in_attention","act-followup-06");
+ assert.equal(followup.status,201);
+ assert.equal((await followup.json()).automatic_status_change,false);
+ const done=await post("service_completed","in_attention","act-close-00007");
+ assert.equal(done.status,201);
+ assert.equal((await done.json()).status,"closed");
+ assert.equal(f.sqlite.prepare("SELECT status FROM service_requests WHERE request_id=?").get(f.ids[1]).status,"new");
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM request_events WHERE request_id=?").get(id).n,7);
+});
+
+test("Actuaciones restringidas a operador, sólo sintéticas, con origen y estado esperado",async()=>{
+ const f=await fixture(),id=f.ids[0],path="/v2/operator/api/record";
+ const data={request_id:id,expected_status:"new",action:"reply_received"};
+ assert.equal((await worker.fetch(req(path,"POST",data,{tech:false,cookie:f.cookie,idem:"act-test-0001"}),f.env)).status,401);
+ assert.equal((await worker.fetch(req(path,"POST",data,{badToken:true,idem:"act-test-0001"}),f.env)).status,401);
+ assert.equal((await worker.fetch(req(path,"GET",undefined,{tech:false,cookie:f.cookie}),f.env)).status,404);
+ assert.equal((await worker.fetch(req("/v2/operator/api/actions","GET",undefined,{tech:false}),f.env)).status,401);
+ assert.equal((await worker.fetch(req("/v2/operator/api/actions"),f.env)).status,200);
+ const outside=await operatorRecordAction(req(path,"POST",data,{origin:"https://evil.invalid",idem:"act-test-0001"}),f.env);
+ assert.equal(outside.status,403);
+ const bad=await operatorRecordAction(req(path,"POST",{...data,action:"inventado"},{idem:"act-test-0001"}),f.env);
+ assert.equal(bad.status,400);
+ const stale=await operatorRecordAction(req(path,"POST",{...data,expected_status:"contacted"},{idem:"act-test-0002"}),f.env);
+ assert.equal(stale.status,409);
+ const unrelated=await operatorRecordAction(req(path,"POST",{...data,request_id:"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"},{idem:"act-test-0003"}),f.env);
+ assert.equal(unrelated.status,404);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM request_events").get().n,0);
+ const html=await (await worker.fetch(req("/v2/operator"),f.env)).text();
+ assert.match(html,/Registrar actuación/);
+ assert.match(html,/visibilitychange/);
+ assert.match(html,/WhatsApp personal no está conectado/);
+});
+
+test("Actuaciones: cita y envío de correo no alteran estado; expediente cerrado no acepta avance",async()=>{
+ const f=await fixture(),id=f.ids[0];
+ const post=(action,expected,idem)=>operatorRecordAction(req("/v2/operator/api/record","POST",{
+  request_id:id,expected_status:expected,action,
+ },{idem}),f.env);
+ assert.equal((await post("appointment_scheduled","new","act-appointment")).status,201);
+ assert.equal((await post("email_sent","new","act-email-00001")).status,201);
+ assert.equal(f.sqlite.prepare("SELECT status FROM service_requests WHERE request_id=?").get(id).status,"new");
+ assert.equal((await post("call_answered","new","act-call-00002")).status,201);
+ assert.equal((await post("consultation_completed","contacted","act-attend-0003")).status,201);
+ assert.equal((await post("service_completed","in_attention","act-finish-0004")).status,201);
+ assert.equal((await post("documents_reviewed","closed","act-review-0005")).status,409);
+ assert.equal((await post("followup_done","closed","act-followup-0006")).status,201);
+ assert.equal(f.sqlite.prepare("SELECT status FROM service_requests WHERE request_id=?").get(id).status,"closed");
 });
