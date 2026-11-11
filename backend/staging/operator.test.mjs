@@ -6,6 +6,7 @@ import {readFileSync} from "node:fs";
 import {operatorQueue,operatorUpdateStatus,operatorSendInvitation} from "./operator-api.js";
 import {operatorActionCatalog,operatorRecordAction} from "./operator-actions.js";
 import {listFollowups,createFollowup,changeFollowup} from "./followup-api.js";
+import {reminderDigest,previewDailyAlerts,sendDailyAlerts} from "./daily-alerts.js";
 import {newSessionToken,tokenHash} from "./auth-core.js";
 import worker from "./worker.js";
 
@@ -360,4 +361,105 @@ test("Panel operador contiene agenda móvil y semáforo y puede cargar sin tabla
  assert.match(html,/visibilitychange/);
  assert.match(html,/loadFollowups/);
  assert.ok(!html.includes("daurel-db"));
+});
+
+
+test("Alertas: vista previa solo con operador, resumen seguro sin WhatsApp ni secretos",async()=>{
+ const f=await fixture();
+ const day=(await (await listFollowups(f.env,NOW)).json()).today;
+ const tomorrow=new Date(Date.parse(day+"T12:00:00Z")+86400000).toISOString().slice(0,10);
+ const taskId="followup-"+"a".repeat(64);
+ f.sqlite.prepare("INSERT INTO followup_tasks(task_id,request_id,action_code,due_date) VALUES (?,?,?,?)")
+   .run(taskId,f.ids[0],"contact_again",tomorrow);
+ const noKey=await worker.fetch(req("/v2/operator/api/alerts/preview","GET",undefined,{tech:false,cookie:f.cookie}),f.env);
+ assert.equal(noKey.status,401);
+ const preview=await worker.fetch(req("/v2/operator/api/alerts/preview"),f.env);
+ assert.equal(preview.status,200);
+ const body=await preview.json();
+ assert.equal(body.success,true);
+ assert.equal(body.delivery_enabled,false);
+ assert.equal(body.telegram_configured,false);
+ assert.equal(body.sending_active,false);
+ assert.equal(body.cron_utc,"0 15 * * *");
+ assert.equal(body.preview.count,1);
+ assert.equal(body.preview.counts.tomorrow,1);
+ assert.match(body.preview.text,/DAU-TEST-0001/);
+ assert.match(body.preview.text,/MAÑANA/);
+ assert.ok(!JSON.stringify(body).includes("clave-tecnica-operador"));
+ assert.ok(!JSON.stringify(body).includes("daurelcontact@gmail.com"));
+ const page=await (await worker.fetch(req("/v2/operator"),f.env)).text();
+ assert.match(page,/Recordatorios en Telegram/);
+ assert.match(page,/Ver mensaje de ejemplo/);
+});
+
+test("Telegram: envía máximo un resumen diario si se habilita expresamente",async()=>{
+ const f=await fixture(),day=(await (await listFollowups(f.env,NOW)).json()).today;
+ const key="followup-"+"b".repeat(64);
+ f.sqlite.prepare("INSERT INTO followup_tasks(task_id,request_id,action_code,due_date) VALUES (?,?,?,?)")
+  .run(key,f.ids[0],"check_deadline",day);
+ const env={...f.env,DAUREL_V2_ALERTS_ENABLED:"true",
+  DAUREL_V2_TELEGRAM_CHAT_ID:"123456789",
+  DAUREL_V2_TELEGRAM_BOT_TOKEN:"123456:abcdefghijklmnopqrstuvwxyz123456789"};
+ const sends=[];
+ const mock=async(url,init)=>{
+  sends.push({url,init});
+  assert.equal(init.method,"POST");
+  const payload=JSON.parse(init.body);
+  assert.equal(payload.chat_id,"123456789");
+  assert.ok(payload.text.includes("DAU-TEST-0001"));
+  assert.ok(!payload.text.includes("demo-cliente1"));
+  assert.ok(!payload.text.includes("daurelcontact@gmail.com"));
+  return {ok:true,json:async()=>({ok:true,result:{message_id:17}})};
+ };
+ const first=await sendDailyAlerts(env,NOW,mock);
+ assert.equal(first.sent,true);
+ assert.equal(first.count,1);
+ assert.equal(sends.length,1);
+ const second=await sendDailyAlerts(env,NOW,mock);
+ assert.deepEqual(second,{sent:false,reason:"already_sent"});
+ assert.equal(sends.length,1);
+ const logs=f.sqlite.prepare([
+  "SELECT status FROM integration_events WHERE provider='telegram-staging'",
+  "AND source_scope='staging-followup-daily'",
+ ].join(" ")).all();
+ assert.equal(logs.length,1);
+ assert.equal(logs[0].status,"completed");
+ const disabled=await sendDailyAlerts({...env,DAUREL_V2_ALERTS_ENABLED:"false"},NOW,mock);
+ assert.equal(disabled.reason,"not_enabled");
+ assert.equal(sends.length,1);
+});
+
+test("Telegram: no envía sin pendientes, nunca desde producción y conserva reintento tras error",async()=>{
+ const f=await fixture(),day=(await (await listFollowups(f.env,NOW)).json()).today;
+ const env={...f.env,DAUREL_V2_ALERTS_ENABLED:"true",
+  DAUREL_V2_TELEGRAM_CHAT_ID:"123456789",
+  DAUREL_V2_TELEGRAM_BOT_TOKEN:"123456:abcdefghijklmnopqrstuvwxyz123456789"};
+ const noTasks=await sendDailyAlerts(env,NOW,async()=>{throw Error("No debería llamar Telegram")});
+ assert.equal(noTasks.reason,"no_due_tasks");
+ const nonStaging=await sendDailyAlerts({...env,ENVIRONMENT:"production"},NOW,async()=>{throw Error("No debería llamar")});
+ assert.equal(nonStaging.reason,"not_staging");
+ const taskId="followup-"+"c".repeat(64);
+ f.sqlite.prepare("INSERT INTO followup_tasks(task_id,request_id,action_code,due_date) VALUES (?,?,?,?)")
+  .run(taskId,f.ids[1],"review_documents",day);
+ const failed=await sendDailyAlerts(env,NOW,async()=>({ok:false,json:async()=>({ok:false})}));
+ assert.equal(failed.reason,"delivery_failed");
+ const status=f.sqlite.prepare("SELECT status FROM integration_events WHERE provider='telegram-staging'").get();
+ assert.equal(status.status,"failed");
+ let sent=0;
+ const retry=await sendDailyAlerts(env,NOW,async()=>{sent++;return {ok:true,json:async()=>({ok:true})}});
+ assert.equal(retry.sent,true);
+ assert.equal(sent,1);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM integration_events WHERE provider='telegram-staging'").get().n,1);
+ const idempotent=await sendDailyAlerts(env,NOW,async()=>{throw Error("no second send")});
+ assert.equal(idempotent.reason,"already_sent");
+});
+
+test("Cron: sin configuración opt-in no envía y solo actúa con cron de staging",async()=>{
+ const f=await fixture();
+ const config=await previewDailyAlerts(f.env,NOW);
+ assert.equal((await config.json()).sending_active,false);
+ await worker.scheduled({cron:"0 15 * * *",scheduledTime:NOW},f.env,{});
+ await worker.scheduled({cron:"*/5 * * * *",scheduledTime:NOW},f.env,{});
+ await worker.scheduled({cron:"0 15 * * *",scheduledTime:NOW},{...f.env,ENVIRONMENT:"production"},{});
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM integration_events WHERE provider='telegram-staging'").get().n,0);
 });
