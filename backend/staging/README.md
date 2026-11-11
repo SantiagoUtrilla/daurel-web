@@ -127,3 +127,19 @@ La experiencia de cliente está separada del laboratorio técnico:
 - Las pruebas automáticas verifican rechazo sin sesión, rechazo de otros orígenes, límite diario, acceso por invitación específica y cierre de sesión.
 
 **Prueba manual breve:** abrir `/v2/client` y consultar el asunto laboral ya autorizado por la cuenta de prueba. Si no hay sesión, usar el botón «Recibir código de acceso». No hace falta ingresar la clave técnica.
+
+## 10. Centro de operaciones de staging (módulo operador)
+
+URL `https://daurel-backend-staging.lmsantiagoutrilla.workers.dev/v2/operator`.
+
+- La página puede cargarse, pero **todos los datos y las operaciones** quedan tras `STAGING_TEST_TOKEN` en `worker.js`.
+- Muestra estadísticas, bandeja de solicitudes, estado y nombre de cliente **ficticios**; permite buscar y filtrar sin acceder a clientes reales.
+- Crea nuevos asuntos con `/v2/demo/requests` y el identificador `demo-*`, sin crear cuenta ni contraseña del cliente.
+- `GET /v2/operator/api/queue`: únicamente solicitudes con `intake_channel='staging_demo'`, hasta 100 asuntos.
+- `POST /v2/operator/api/status`: actualización validada por transición, con `Idempotency-Key`, estado esperado y actuación en `request_events`. Transiciones admitidas: nuevo → contactado → en atención → cerrado, además de cancelación y reapertura controlada. Sin comentarios de texto libre.
+- `POST /v2/operator/api/invite`: invitación por **UUID exacto de solicitud**, exclusivamente al correo de prueba `daurelcontact@gmail.com`. Contiene enlace directo para `/v2/client`, uso único y 24 horas, limita reenvíos y revoca invitaciones pendientes anteriores.
+- Las operaciones POST rechazan solicitudes sin `Origin` coincidente; las rutas técnicas no aceptan cookies de cliente como autorización de operador.
+- Sin nuevos secretos ni migraciones D1. Conservar `ENVIRONMENT=staging` y no publicar este módulo en `daurel.com.mx`.
+- El inicio de sesión de operadores reales aún NO está implementado: faltan cuenta nominal, roles, doble factor/seguridad adicional, registros de acciones por operador y controles de privacidad. No confundir el secreto técnico del laboratorio con credenciales definitivas de personal.
+
+**Prueba manual:** abrir `/v2/operator`; ingresar la misma clave técnica del laboratorio; pulsar «Abrir mi panel»; cambiar el estado de una solicitud ficticia; pulsar «Enviar acceso» en un expediente. El correo recibido debe permitir entrar en `/v2/client` y consultar solo el asunto seleccionado. Para ver el historial, pulsar «Ver historial». No usar datos personales reales.
