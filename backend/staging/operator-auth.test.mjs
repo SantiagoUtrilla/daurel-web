@@ -16,13 +16,13 @@ const TECH="token-de-uso-tecnico-local-de-ensayo-2026";
 const SECRET="clave-separada-para-firmar-otp-cliente-staging-2026";
 const ADMIN_EMAIL="daurelcontact@gmail.com";
 const ISO_DATE=new Date();
-function fixture(operatorSchema=true){
+function fixture(operatorSchema=true,teamSchema=true){
  const sqlite=new DatabaseSync(":memory:");
  sqlite.exec("PRAGMA foreign_keys=ON");
  for(const m of [
   "0001_v2_core.sql","0002_optional_accounts.sql",
   "0003_case_invitations.sql","0004_followup_tasks.sql",
-  ...(operatorSchema?["0006_operator_identity.sql","0007_operator_approvals.sql"]:[]),
+  ...(operatorSchema?["0006_operator_identity.sql",...(teamSchema?["0007_operator_approvals.sql"]:[])]:[]),
  ]){
   sqlite.exec(readFileSync(new URL("../migrations/"+m,import.meta.url),"utf8"));
  }
@@ -677,4 +677,57 @@ test("Equipo: correo no autorizado no puede obtener código ni activar membresí
  assert.match(html,/id="operator-email"/);
  assert.match(html,/id="team-add"/);
  assert.match(html,/\/v2\/operator\/api\/team\/list/);
+});
+
+
+test("Staging 0006 sin instalar 0007: administrador sigue entrando, colaboradores esperan activación",async()=>{
+ const f=fixture(true,false);
+ const {cookie}=await enroll(f);
+ const health=(await (await worker.fetch(make("/health"),f.env)).json());
+ assert.equal(health.optional_operator_schema.ready,true);
+ assert.equal(health.optional_team_schema.ready,false);
+ assert.deepEqual(health.optional_team_schema.missing_tables,["operator_approved_emails"]);
+ const session=await (await worker.fetch(make("/v2/operator/auth/status","GET",undefined,{Cookie:cookie}),f.env)).json();
+ assert.equal(session.authenticated,true);
+ assert.equal(session.role,"owner");
+ const create=await worker.fetch(make("/v2/operator/api/team/add","POST",{
+  email:"ficticio@example.invalid",role:"reader",
+ },{Cookie:cookie}),f.env);
+ assert.equal(create.status,503);
+ assert.match((await create.json()).message,/0007_operator_approvals/);
+ assert.equal((await worker.fetch(make("/v2/operator/api/queue","GET",undefined,{Cookie:cookie}),f.env)).status,200);
+});
+
+test("Revocar autorización inutiliza un código pendiente incluso si el rol se reactiva",async()=>{
+ const f=fixture(),{cookie}=await enroll(f);
+ const memberEmail="codigo-pendiente@example.invalid";
+ const created=await worker.fetch(make("/v2/operator/api/team/add","POST",{
+  email:memberEmail,role:"reader",
+ },{Cookie:cookie}),f.env);
+ assert.equal(created.status,201);
+ const accountId=(await created.json()).account_id;
+ const mail={code:null},now=Date.now()+61000;
+ const send=await operatorStart(make("/v2/operator/auth/start","POST",{email:memberEmail}),
+  f.env,async(_,init)=>{
+   mail.code=/Tu código temporal es: (\d{6})/.exec(JSON.parse(init.body).text)?.[1];
+   return {ok:true};
+  },now);
+ assert.equal(send.status,202);
+ const challenge=(await send.json()).challenge_id;
+ const disable=await worker.fetch(make("/v2/operator/api/team/change","POST",{
+  account_id:accountId,role:"reader",status:"disabled",
+ },{Cookie:cookie}),f.env);
+ assert.equal(disable.status,200);
+ const stored=f.sqlite.prepare("SELECT consumed_at FROM operator_login_challenges WHERE challenge_id=?").get(challenge);
+ assert.ok(stored.consumed_at);
+ const restore=await worker.fetch(make("/v2/operator/api/team/change","POST",{
+  account_id:accountId,role:"reader",status:"active",
+ },{Cookie:cookie}),f.env);
+ assert.equal(restore.status,200);
+ const rejected=await operatorVerify(make("/v2/operator/auth/verify","POST",{
+  challenge_id:challenge,code:mail.code,
+ }),f.env,now+250);
+ assert.equal(rejected.status,401);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM operator_sessions WHERE account_id=?").get(accountId).n,0);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM account_emails WHERE email_normalized=?").get(memberEmail).n,0);
 });
