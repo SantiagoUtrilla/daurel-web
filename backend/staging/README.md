@@ -166,3 +166,27 @@ Cambios automáticos **con estado de origen exacto**:
 El intento de escribir por WhatsApp, llamar, enviar un correo, programar una cita o solicitar documentos **no equivale a contacto confirmado** ni cambia por sí solo el estado. Registrar una actuación es una declaración manual del operador; no se importan chats de WhatsApp personal. No registrar supuestos hechos a partir de abrir enlaces o aplicaciones. Los asuntos cerrados o cancelados requieren actuación consciente para reabrirse.
 
 **Costo y canales**: este flujo no contrata ni conecta la API de WhatsApp. Reutiliza la infraestructura ya provisionada dentro de sus límites gratuitos; no garantiza que los proveedores mantengan permanentemente esos límites. En el futuro se evaluará una conexión oficial separada. No modificar `daurel-db` ni `main`.
+
+## 12. Agenda operativa y semáforo por expediente (migración 0004)
+
+Implementado en la rama `architecture/daurel-v2` para el mismo panel `/v2/operator`. NO está habilitado en producción.
+
+**Instalación:** aplicar manualmente el SQL `backend/migrations/0004_followup_tasks.sql` exclusivamente en **D1 → daurel-staging → Explore Data → D1 Studio → Run all in sequence**. Son **3 instrucciones SQL**: una tabla y dos índices. No ejecutar en `daurel-db` y no utilizar `wrangler d1 migrations apply` mientras el historial de 0001–0003 siga sin conciliar. El endpoint `/health` indica `optional_followup_schema.ready`.
+
+Sin instalar 0004, el panel anterior continúa disponible y la sección «Agenda de próximos pasos» mostrará una indicación específica. El Worker no crea tablas automáticamente.
+
+La API de la agenda, siempre protegida con el `STAGING_TEST_TOKEN`:
+- `GET /v2/operator/api/followups`: devuelve pendientes abiertos solo de `staging_demo` y fecha local `America/Mexico_City`, con semáforo calculado al consultar.
+- `POST /v2/operator/api/followups/create`: recibe exclusivamente `request_id`, `action_code` y `due_date` en `YYYY-MM-DD`; `Idempotency-Key`, `Origin` y validación de calendario obligatorios. Fecha de hoy hasta 365 días. Solo expedientes abiertos y ficticios.
+- `POST /v2/operator/api/followups/complete` y `/cancel`: cierran un pendiente existente con confirmación, y registran el cambio en `request_events`. No modifican el estado general del expediente ni afirman haber enviado mensajes a clientes.
+
+**Semáforo:**
+- Rojo = fecha anterior a hoy y pendiente abierto;
+- Amarillo = vence hoy, mañana o pasado mañana;
+- Verde = fecha posterior y pendiente abierto.
+
+Los colores no representan cumplimiento ni progreso jurídico, solo **urgencia temporal del siguiente paso**. Las fechas vencidas se conservan visibles hasta completarlas o cancelarlas. Se pueden programar ocho tipos de tareas predefinidas: volver a contactar, solicitar o revisar documentos, programar cita, seguimiento ante autoridad, actualizar al cliente, revisar respuesta y comprobar plazo.
+
+**Sin costos adicionales ni notificaciones:** esta versión muestra pendientes al abrir o actualizar el panel desde navegador/celular. No ejecuta tareas ni envía WhatsApp, correos, avisos de calendario o alertas automáticas en segundo plano. Esas funciones requieren diseño y pruebas posteriores (p.ej., Cloudflare Cron Trigger) antes de declararlas operativas.
+
+**Prueba manual:** tras instalar 0004, recargar `/v2/operator` (Ctrl+F5), entrar con clave técnica, encontrar en un expediente activo «Próximo paso», elegir acción y fecha, pulsar «Programar pendiente». Debe aparecer en «Agenda de próximos pasos». Marcar «Hecho» y comprobar que desaparece de abiertos y queda en «Ver historial». Usar solo expedientes `demo-*` y datos ficticios. Una única tabla nueva, sin secretos adicionales.
