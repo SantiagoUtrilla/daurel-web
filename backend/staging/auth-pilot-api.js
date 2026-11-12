@@ -7,6 +7,7 @@ import {
   newOtp, otpHmac, timingSafeHexEqual, newSessionToken, tokenHash,
 } from "./auth-core.js";
 import { sendLoginCode } from "./email-provider.js";
+import {allowedTestEmail} from "./client-email-pilot-config.js";
 
 const OWNER_EMAIL = "daurelcontact@gmail.com";
 const SESSION_COOKIE = "__Host-daurel_v2_pilot";
@@ -241,9 +242,11 @@ export async function sessionRecord(request,env,now) {
     "FROM account_sessions s JOIN accounts a ON a.account_id=s.account_id",
     "JOIN account_emails ae ON ae.account_id=a.account_id",
     "WHERE s.token_sha256=? AND s.revoked_at IS NULL AND s.expires_at>?",
-    "AND a.status='active' AND ae.email_normalized=? LIMIT 1",
-  ].join(" ")).bind(hashed,new Date(now).toISOString(),OWNER_EMAIL).first();
-  return row || null;
+    "AND a.status='active' LIMIT 1",
+  ].join(" ")).bind(hashed,new Date(now).toISOString()).first();
+  // La sesión solo sirve en staging y para destinatarios de ensayo explícitos.
+  // No inferimos titularidad de expedientes por correo verificado.
+  return row && allowedTestEmail(env,row.email_normalized) ? row : null;
 }
 
 export async function getPilotSession(request,env,now=Date.now()) {
