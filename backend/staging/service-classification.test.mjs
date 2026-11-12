@@ -101,7 +101,7 @@ test("Muestra nombre capturado junto al folio solo en asuntos autorizados, sin i
  const reader=await (await operatorQueue(f.env,{account_id:"reader",role:"reader"})).json();
  assert.ok(reader.cases.some(c=>c.requester_name==="Cliente Ejemplo A"));
  assert.ok(!reader.cases.some(c=>c.requester_name==="Cliente Ejemplo C"));
- const page=await operatorPageResponse().text();
+ const page=await (await import("./operator-page.js")).operatorPageResponse().text();
  assert.match(page,/Solicitante:/);
  assert.match(page,/No proporcionado/);
 });
