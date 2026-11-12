@@ -26,6 +26,8 @@ import {invitationPageResponse} from "./invitation-page.js";
 import {clientPortalPageResponse} from "./client-portal-page.js";
 import {createClientSelfRequest} from "./client-self-intake.js";
 import {guestPageResponse} from "./guest-page.js";
+import {clientEmailPilotPage} from "./client-email-pilot-page.js";
+import {startClientEmailPilot,verifyClientEmailPilot} from "./client-email-pilot.js";
 import {submitGuestRequest} from "./guest-intake.js";
 import {
  portalRequestLogin,portalVerifyLogin,portalSession,portalLogout,
@@ -145,6 +147,9 @@ export default {
     if(request.method==="GET" && url.pathname==="/v2/guest"){
       return guestPageResponse(env);
     }
+    if(request.method==="GET" && url.pathname==="/v2/client/email-test"){
+      return clientEmailPilotPage(env);
+    }
     const clientApi={
       "/v2/client/api/start":["POST",portalRequestLogin],
       "/v2/client/api/verify":["POST",portalVerifyLogin],
@@ -153,6 +158,8 @@ export default {
       "/v2/client/api/cases":["GET",portalMatters],
       "/v2/client/api/accept":["POST",portalAcceptInvitation],
       "/v2/client/api/create":["POST",createClientSelfRequest],
+      "/v2/client/api/email/start":["POST",startClientEmailPilot],
+      "/v2/client/api/email/verify":["POST",verifyClientEmailPilot],
       "/v2/guest/api/create":["POST",submitGuestRequest],
     };
     const clientRoute=clientApi[url.pathname];
