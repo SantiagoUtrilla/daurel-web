@@ -1,6 +1,7 @@
 import { demoPageResponse } from "./demo-page.js";
 import {operatorPageResponse} from "./operator-page.js";
 import {operatorAuditLog} from "./operator-audit.js";
+import {revokeClientAccess} from "./client-access-revoke.js";
 import {
  caseAccessSchemaReady,assignedCase,listCaseAssignments,changeCaseAssignment,
 } from "./operator-case-access.js";
@@ -221,6 +222,7 @@ export default {
     const isOperatorTeamList=request.method==="GET" && url.pathname==="/v2/operator/api/team/list";
     const isOperatorTeamAdd=request.method==="POST" && url.pathname==="/v2/operator/api/team/add";
     const isOperatorTeamChange=request.method==="POST" && url.pathname==="/v2/operator/api/team/change";
+    const isClientAccessRevoke=request.method==="POST" && url.pathname==="/v2/operator/api/client-access/revoke";
     const isOperatorAudit=request.method==="GET" && url.pathname==="/v2/operator/api/audit";
     const isOperatorQueue=request.method==="GET" && url.pathname==="/v2/operator/api/queue";
     const isOperatorStatus=request.method==="POST" && url.pathname==="/v2/operator/api/status";
@@ -248,7 +250,7 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover && !isOperatorCreate && !operatorHistoryMatch && !isOperatorAudit && !isOperatorTeamList && !isOperatorTeamAdd && !isOperatorTeamChange && !isAssignmentsList && !isAssignmentsChange) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover && !isOperatorCreate && !operatorHistoryMatch && !isOperatorAudit && !isOperatorTeamList && !isOperatorTeamAdd && !isOperatorTeamChange && !isAssignmentsList && !isAssignmentsChange && !isClientAccessRevoke) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -312,6 +314,7 @@ export default {
       if(isOperatorRecord)return await operatorRecordAction(request,env);
       if(isAssignmentsList)return await listCaseAssignments(env,operatorActor);
       if(isAssignmentsChange)return await changeCaseAssignment(request,env,operatorActor);
+      if(isClientAccessRevoke)return await revokeClientAccess(request,env,operatorActor);
       if(isOperatorTeamList)return await listOperatorTeam(env,operatorActor);
       if(isOperatorTeamAdd)return await addOperatorMember(request,env,operatorActor);
       if(isOperatorTeamChange)return await changeOperatorMember(request,env,operatorActor);
