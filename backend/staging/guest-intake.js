@@ -10,7 +10,7 @@ const CHANNEL="daurel-v2-demo";
 const CONFIRM_TTL=24*60*60*1000;
 const DAY_LIMIT_PER_IP=3;
 const DAY_LIMIT_TOTAL=30;
-const ID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TYPES=Object.freeze({
  general:"Solicitud ficticia: orientación general",
  laboral:"Solicitud ficticia: consulta laboral",
