@@ -24,6 +24,7 @@ import { authPilotPageResponse } from "./auth-pilot-page.js";
 import { accountLinkPageResponse } from "./account-link-page.js";
 import {invitationPageResponse} from "./invitation-page.js";
 import {clientPortalPageResponse} from "./client-portal-page.js";
+import {createClientSelfRequest} from "./client-self-intake.js";
 import {
  portalRequestLogin,portalVerifyLogin,portalSession,portalLogout,
  portalMatters,portalAcceptInvitation,
@@ -146,6 +147,7 @@ export default {
       "/v2/client/api/logout":["POST",portalLogout],
       "/v2/client/api/cases":["GET",portalMatters],
       "/v2/client/api/accept":["POST",portalAcceptInvitation],
+      "/v2/client/api/create":["POST",createClientSelfRequest],
     };
     const clientRoute=clientApi[url.pathname];
     if(clientRoute){
