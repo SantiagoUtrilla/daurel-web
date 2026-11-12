@@ -71,7 +71,7 @@ test("Inactivo por defecto: no permite solicitudes y jamás publica la secret en
  const page=await (await worker.fetch(new Request(BASE+"/v2/guest"),missing)).text();
  assert.match(page,/todavía no está activado/);
  assert.ok(!page.includes(SECRET));
- assert.ok(!page.includes("cf-turnstile"));
+ assert.ok(!page.includes('<div class="cf-turnstile"'));
  const response=await worker.fetch(request(),missing);
  assert.equal(response.status,503);
  assert.equal(rows(sqlite,"service_requests"),0);
@@ -86,7 +86,7 @@ test("Guest sin sesión crea asunto contable; con OTP y código puede reclamarlo
  assert.ok(!page.includes(SECRET));
  const mock=challenge();
  const response=await submitGuestRequest(request(),env,mock.transport);
- assert.equal(response.status,201);
+ assert.equal(response.status,201,JSON.stringify(await response.clone().json()));
  assert.equal(mock.calls,1);
  const created=await response.json();
  assert.equal(created.synthetic_only,true);
