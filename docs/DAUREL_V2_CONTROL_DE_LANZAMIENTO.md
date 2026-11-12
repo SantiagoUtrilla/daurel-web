@@ -23,7 +23,7 @@ Actualizado: 11 de noviembre de 2026. Rama de desarrollo: `architecture/daurel-v
 - [x] Verificado `/health` → `optional_team_schema.ready: true`, `expected_tables: 2`, `missing_tables: []`.
 - [x] Verificada sección «Administrar colaboradores» en `/v2/operator` con sesión de propietario.
 - [x] Ensayo manual con segundo correo de prueba: autorización como lector, OTP, visualización de **1 expediente asignado** y ocultación del expediente civil ajeno; al **revocar la asignación** y actualizar la página, el usuario confirmó **0 expedientes visibles sin cerrar sesión** (11/11/2026). No se usaron datos de clientes reales.
-- [ ] Ensayar por separado desactivación total del colaborador, revocación de sesión y pruebas de seguridad de rutas directas, antes de producción.
+- [x] **Desactivación total manual:** tras guardar el cambio del colaborador de pruebas `sountibeats@gmail.com`, el navegador en incógnito dejó de mostrar la sesión activa y rechazó solicitar otro OTP con «Este correo no está autorizado para operar DAUREL». Confirmación visual del usuario (11/11/2026). **Pendiente**: prueba manual adicional de rutas directas y verificación de `authenticated:false` en endpoint de estado, además de evaluación de seguridad preproducción.
 
 ## Bloqueadores del lanzamiento real (P0)
 
