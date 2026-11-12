@@ -114,10 +114,12 @@ export async function createClientSelfRequest(request,env,now=Date.now()){
      "INSERT INTO account_request_access(account_id,request_id,permission,grant_basis)",
      "VALUES (?,?,'view','verified_authorization')",
     ].join(" ")).bind(cookieSession.account_id,id),
+    // Historial explícito: 0003 limita el catálogo de case_access_audit,
+    // así que no atribuir una invitación inexistente al acceso automático.
     env.DB.prepare([
-     "INSERT INTO case_access_audit(audit_id,request_id,account_id,event_type)",
-     "VALUES (?,?,?,'access_auto_granted')",
-    ].join(" ")).bind(crypto.randomUUID(),id,cookieSession.account_id),
+     "INSERT INTO request_events(event_id,request_id,event_type,summary)",
+     "VALUES (?,?,'client_access_auto_granted','Acceso de cliente creado con su solicitud ficticia')",
+    ].join(" ")).bind(crypto.randomUUID(),id),
    ]);
    return reply({success:true,public_folio:folio,access_active:true,synthetic_only:true,
     message:"Solicitud ficticia registrada y vinculada automáticamente a tu sesión."},201);
