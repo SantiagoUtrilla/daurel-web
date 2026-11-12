@@ -26,14 +26,34 @@ function configured(env){
    typeof env.RESEND_API_KEY==="string" && env.RESEND_API_KEY.length>=10 &&
    env.AUTH_EMAIL_FROM==="acceso@daurel.com.mx";
 }
-function noBody(request){
- // Content-Length puede faltar incluso si el cuerpo está presente.
- return request.body===null;
+async function emptyPost(request){
+ // Cloudflare puede representar un POST vacío como un stream sin bytes.
+ // No basta request.body===null; rechazar cualquier contenido inesperado.
+ if(request.body===null)return true;
+ const length=request.headers.get("Content-Length");
+ if(length!==null&&(!/^[0-9]+$/.test(length)||Number(length)>32))return false;
+ const reader=request.body.getReader();
+ let size=0;
+ const chunks=[];
+ try{
+  while(true){
+   const {done,value}=await reader.read();
+   if(done)break;
+   size+=value.byteLength;
+   if(size>32){await reader.cancel();return false}
+   chunks.push(value);
+  }
+ }catch{return false}
+ const raw=new TextDecoder().decode(
+  chunks.length===0?new Uint8Array(0):
+  Uint8Array.from(chunks.flatMap(c=>Array.from(c)))
+ ).trim();
+ return raw==="";
 }
 
 // Puerta de entrada desde navegador para correo FIJO, jamás aceptamos un email enviado por cliente.
 export async function portalRequestLogin(request,env,transport=fetch,now=Date.now()){
- if(!sameOriginPost(request)||!noBody(request))
+ if(!sameOriginPost(request)||!await emptyPost(request))
   return fail("Solicitud no permitida.",403);
  if(!configured(env))return fail("Acceso temporalmente no disponible.",503);
  // Restricción adicional al límite de 1/minuto del piloto: máximo 6 correos al día.
@@ -60,7 +80,7 @@ export async function portalSession(request,env,now=Date.now()){
  return getPilotSession(request,env,now);
 }
 export async function portalLogout(request,env,now=Date.now()){
- if(!sameOriginPost(request)||!noBody(request))return fail("Solicitud no permitida.",403);
+ if(!sameOriginPost(request)||!await emptyPost(request))return fail("Solicitud no permitida.",403);
  return logoutPilotSession(request,env,now);
 }
 export async function portalMatters(request,env,now=Date.now()){
