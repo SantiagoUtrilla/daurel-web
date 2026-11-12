@@ -389,6 +389,8 @@ export function roleAllows(role,path,method){
   return role==="owner"&&(method==="GET"||method==="POST");
  if(path.startsWith("/v2/operator/api/assignments/"))
   return role==="owner"&&(method==="GET"||method==="POST");
+ if(path==="/v2/operator/api/client-access/revoke")
+  return role==="owner"&&method==="POST";
  if(role==="owner")return true;
  const readOnly=method==="GET" && [
   "/v2/operator/api/queue","/v2/operator/api/actions",
