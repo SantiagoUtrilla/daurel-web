@@ -3,6 +3,7 @@
 // El inicio de sesión del cliente no concede permisos de operador.
 import {json} from "./demo-api.js";
 import {newSessionToken,tokenHash} from "./auth-core.js";
+import {classifySyntheticRequest,countSyntheticAreas} from "./service-classification.js";
 
 const CHANNEL="daurel-v2-demo";
 const EMAIL="daurelcontact@gmail.com";
@@ -85,6 +86,9 @@ export async function operatorQueue(env,actor=null){
   "ORDER BY sr.updated_at DESC,sr.opened_at DESC,sr.request_id DESC LIMIT 100",
  ].join(" "));
  const r=await (scoped?stmt.bind(CHANNEL,actor.account_id):stmt.bind(CHANNEL)).all();
+ // Etiquetas derivadas exclusivamente del catálogo sintético; el SQL no asigna
+ // colaboradores ni expone filas no autorizadas. Son totales de la página (100).
+ const cases=(r.results||[]).map(c=>({...c,...classifySyntheticRequest(c.summary)}));
  return reply({
   success:true,environment:"staging",synthetic_only:true,
   statistics:{
@@ -92,7 +96,9 @@ export async function operatorQueue(env,actor=null){
    new:Number(stats?.new_count||0),contacted:Number(stats?.contacted_count||0),
    in_attention:Number(stats?.attention_count||0),closed:Number(stats?.closed_count||0),
   },
-  cases:r.results||[],limit:100,
+  area_page_counts:countSyntheticAreas(cases),
+  area_counts_scope:"current_page_only",
+  cases,limit:100,
  });
 }
 
