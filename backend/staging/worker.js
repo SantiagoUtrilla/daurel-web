@@ -333,7 +333,7 @@ export default {
       if(isOperatorTeamList)return await listOperatorTeam(env,operatorActor);
       if(isOperatorTeamAdd)return await addOperatorMember(request,env,operatorActor);
       if(isOperatorTeamChange)return await changeOperatorMember(request,env,operatorActor);
-      if(isOperatorAudit)return await operatorAuditLog(env,operatorActor);
+      if(isOperatorAudit)return await operatorAuditLog(env,operatorActor,request);
       if(isOperatorQueue)return await operatorQueue(env,operatorActor);
       if(isOperatorCreate)return await operatorCreate(request,env);
       if(operatorHistoryMatch)return await operatorHistory(env,operatorHistoryMatch[1]);
