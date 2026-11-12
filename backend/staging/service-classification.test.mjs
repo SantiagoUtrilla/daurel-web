@@ -90,6 +90,22 @@ test("Lector solo recibe su subconjunto asignado, aun cuando existan más casos 
  assert.deepEqual(new Set(result.cases.map(c=>c.public_folio)),new Set(["DAU-TEST-0","DAU-TEST-3"]));
 });
 
+test("Muestra nombre capturado junto al folio solo en asuntos autorizados, sin inventarlo",async()=>{
+ const f=fixture();
+ f.sqlite.prepare("UPDATE parties SET display_name='Cliente Ejemplo A' WHERE party_id='party-0'").run();
+ f.sqlite.prepare("UPDATE parties SET display_name='Cliente Ejemplo C' WHERE party_id='party-2'").run();
+ const owner=await (await operatorQueue(f.env,{account_id:"owner",role:"owner"})).json();
+ assert.equal(owner.cases.find(c=>c.public_folio==="DAU-TEST-0").requester_name,"Cliente Ejemplo A");
+ assert.equal(owner.cases.find(c=>c.public_folio==="DAU-TEST-2").requester_name,"Cliente Ejemplo C");
+ assert.equal(owner.cases.find(c=>c.public_folio==="DAU-TEST-3").requester_name,"");
+ const reader=await (await operatorQueue(f.env,{account_id:"reader",role:"reader"})).json();
+ assert.ok(reader.cases.some(c=>c.requester_name==="Cliente Ejemplo A"));
+ assert.ok(!reader.cases.some(c=>c.requester_name==="Cliente Ejemplo C"));
+ const page=await operatorPageResponse().text();
+ assert.match(page,/Solicitante:/);
+ assert.match(page,/No proporcionado/);
+});
+
 test("El panel muestra filtros profesionales sin afirmar asignación automática de colaboradores",async()=>{
  const page=(await (await import("./operator-page.js")).operatorPageResponse().text());
  assert.match(page,/id="area-filter"/);
