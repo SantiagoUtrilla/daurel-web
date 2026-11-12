@@ -132,6 +132,37 @@ test("Cliente: OTP sin clave técnica, acceso solo tras invitación y cierre de 
  assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM account_request_access WHERE revoked_at IS NULL").get().n,1);
 });
 
+test("POST vacío representado como stream permite OTP sin aceptar contenido inesperado",async()=>{
+ const {env}=await fixture();
+ let mailed=0;
+ const send=async(_url,init)=>{
+  mailed++;
+  assert.deepEqual(JSON.parse(init.body).to,["daurelcontact@gmail.com"]);
+  return {ok:true};
+ };
+ const empty=new Request(BASE+"/v2/client/api/start",{
+  method:"POST",headers:{Origin:BASE},body:""
+ });
+ assert.ok(empty.body!==null,"La regresión debe usar un cuerpo stream vacío");
+ const login=await portalRequestLogin(empty,env,send,NOW);
+ assert.equal(login.status,202);
+ assert.equal(mailed,1);
+ const unexpected=new Request(BASE+"/v2/client/api/start",{
+  method:"POST",headers:{Origin:BASE,"Content-Type":"text/plain"},body:"surprise"
+ });
+ const rejected=await portalRequestLogin(unexpected,env,send,NOW+61000);
+ assert.equal(rejected.status,403);
+ assert.equal(mailed,1);
+ const logout=await worker.fetch(new Request(BASE+"/v2/client/api/logout",{
+  method:"POST",headers:{Origin:BASE},body:""
+ }),env);
+ assert.equal(logout.status,200);
+ const cross=await portalRequestLogin(new Request(BASE+"/v2/client/api/start",{
+  method:"POST",headers:{Origin:"https://evil.invalid"},body:""
+ }),env,send,NOW+122000);
+ assert.equal(cross.status,403);
+});
+
 test("Cliente simulado: tope diario de seis envíos y destinatario único",async()=>{
  const {env}=await fixture();
  let sent=0;
