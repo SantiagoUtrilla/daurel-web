@@ -385,6 +385,7 @@ export async function operatorLogout(request,env,now=Date.now()){
 export function roleAllows(role,path,method){
  // La bitácora de acciones de terceros está reservada para propietario.
  if(path==="/v2/operator/api/audit")return role==="owner"&&method==="GET";
+ if(path==="/v2/operator/api/routing")return role==="owner"&&method==="GET";
  if(path.startsWith("/v2/operator/api/team/"))
   return role==="owner"&&(method==="GET"||method==="POST");
  if(path.startsWith("/v2/operator/api/assignments/"))
