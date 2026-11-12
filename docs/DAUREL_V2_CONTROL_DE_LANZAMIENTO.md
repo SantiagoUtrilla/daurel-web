@@ -8,6 +8,7 @@ Actualizado: 11 de noviembre de 2026. Rama de desarrollo: `architecture/daurel-v
 
 - [x] Estructura V2 base y laboratorio sintético de asuntos, partes y expedientes.
 - [x] Acceso opcional de cliente por código de correo y permisos explícitos por expediente, no por mera coincidencia de teléfono o correo.
+- [x] **Autosolicitud de cliente autenticado en STAGING:** un cliente que ya validó el correo fijo de pruebas puede crear una solicitud ficticia (incluida contaduría) y verla inmediatamente sin autorización del propietario; 3 por cuenta/día, idempotencia para evitar duplicados, rechazo de orígenes ajenos, permisos restringidos por solicitud y no reactivación al reintentar tras revocación. **116/116 pruebas GitHub Actions aprobadas en ejecución 43139436771** (11/11/2026). **Pendiente:** prueba visual en navegador. El formulario de producción sin cuenta sigue separado y todavía requiere un mecanismo seguro de reclamación posterior mediante prueba de posesión de la solicitud más correo verificado, sin vincular solo por coincidencia de correo.
 - [x] Revocación de accesos de **cliente** por expediente sintético desde el panel del propietario, separada de colaboradores: desactiva permisos, invalida invitaciones pendientes y registra auditoría. Solo en código de staging; **pendiente comprobación manual en navegador**. Pruebas end-to-end verifican que el cliente conserve únicamente otros expedientes concedidos y que lectores/gestores no puedan revocar.
 - [x] Centro de operaciones en navegador y celular con estados, actuaciones, historial, pendientes y semáforo.
 - [x] Cuentas administrativas separadas de las de clientes: activación de propietario y acceso por OTP; el usuario confirmó entrada, salida y reingreso.
@@ -39,7 +40,7 @@ Actualizado: 11 de noviembre de 2026. Rama de desarrollo: `architecture/daurel-v
 
 ## Lo que no está terminado
 
-El laboratorio de pruebas no equivale a la versión productiva. **No hay sincronización automática con WhatsApp personal**, ni app móvil nativa, ni importación de registros reales, ni recuperación histórica de actuaciones que V1 no almacenó. No prometerlo al usuario final.
+El piloto de autosolicitud requiere primero haber iniciado sesión; **no es todavía el formulario público sin cuenta**, ni autoriza por coincidencia de correo solicitudes anteriores. El laboratorio de pruebas no equivale a la versión productiva. **No hay sincronización automática con WhatsApp personal**, ni app móvil nativa, ni importación de registros reales, ni recuperación histórica de actuaciones que V1 no almacenó. No prometerlo al usuario final.
 
 ## Orden de ejecución optimizado
 
