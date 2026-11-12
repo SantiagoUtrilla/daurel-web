@@ -193,9 +193,11 @@ export async function redeemPilotInvite(request,env,now=Date.now()){
 export async function viewPilotInvitedMatters(request,env,now=Date.now()){
  if(!await ready(env))return out({success:false,message:"Falta instalar las tablas de invitaciones."},503);
  const s=await sessionRecord(request,env,now);
- if(!s||s.email_normalized!==TEST_EMAIL){
+ if(!s){
   return out({success:false,message:"Inicia sesión con tu código de correo."},401);
  }
+ // Las solicitudes son visibles SOLO si esta cuenta posee un permiso no revocado.
+ // La verificación de correo nunca concede por sí sola acceso a otros expedientes.
  const res=await env.DB.prepare([
   "SELECT sr.request_id,sr.public_folio,sr.summary,sr.status,sr.opened_at",
   "FROM account_request_access ara",
