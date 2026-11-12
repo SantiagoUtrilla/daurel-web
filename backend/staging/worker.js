@@ -16,6 +16,7 @@ import {previewDailyAlerts,sendDailyAlerts} from "./daily-alerts.js";
 import {telegramConnectionStatus,testTelegramConnection,discoverTelegramChat} from "./telegram-setup.js";
 import {operatorActionCatalog,operatorRecordAction} from "./operator-actions.js";
 import {operatorQueue,operatorUpdateStatus,operatorSendInvitation} from "./operator-api.js";
+import {operatorRoutingOverview} from "./operator-routing.js";
 import { adminPageResponse } from "./admin-page.js";
 import { dossierPageResponse } from "./dossier-page.js";
 import { mailTestPageResponse } from "./email-test-page.js";
@@ -240,6 +241,7 @@ export default {
     const isClientAccessRevoke=request.method==="POST" && url.pathname==="/v2/operator/api/client-access/revoke";
     const isOperatorAudit=request.method==="GET" && url.pathname==="/v2/operator/api/audit";
     const isOperatorQueue=request.method==="GET" && url.pathname==="/v2/operator/api/queue";
+    const isOperatorRouting=request.method==="GET" && url.pathname==="/v2/operator/api/routing";
     const isOperatorStatus=request.method==="POST" && url.pathname==="/v2/operator/api/status";
     const isOperatorInvite=request.method==="POST" && url.pathname==="/v2/operator/api/invite";
     const isInviteIssue=request.method==="POST" && url.pathname==="/v2/demo/invitations/issue";
@@ -265,7 +267,7 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover && !isOperatorCreate && !operatorHistoryMatch && !isOperatorAudit && !isOperatorTeamList && !isOperatorTeamAdd && !isOperatorTeamChange && !isAssignmentsList && !isAssignmentsChange && !isClientAccessRevoke) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorRouting && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover && !isOperatorCreate && !operatorHistoryMatch && !isOperatorAudit && !isOperatorTeamList && !isOperatorTeamAdd && !isOperatorTeamChange && !isAssignmentsList && !isAssignmentsChange && !isClientAccessRevoke) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -335,6 +337,7 @@ export default {
       if(isOperatorTeamChange)return await changeOperatorMember(request,env,operatorActor);
       if(isOperatorAudit)return await operatorAuditLog(env,operatorActor,request);
       if(isOperatorQueue)return await operatorQueue(env,operatorActor);
+      if(isOperatorRouting)return await operatorRoutingOverview(env,operatorActor,request);
       if(isOperatorCreate)return await operatorCreate(request,env);
       if(operatorHistoryMatch)return await operatorHistory(env,operatorHistoryMatch[1]);
       if(isOperatorStatus)return await operatorUpdateStatus(request,env);
