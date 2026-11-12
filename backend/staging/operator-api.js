@@ -77,6 +77,8 @@ export async function operatorQueue(env,actor=null){
  const stmt=env.DB.prepare([
   "SELECT sr.request_id,sr.public_folio,sr.summary,sr.status,sr.priority,",
   "sr.opened_at,sr.updated_at,ei.provider_user_id AS client_key,",
+  "COALESCE((SELECT NULLIF(TRIM(p.display_name),'') FROM parties p",
+  "WHERE p.party_id=sr.requester_party_id),'') AS requester_name,",
   "(SELECT COUNT(*) FROM account_request_access aa",
   "WHERE aa.request_id=sr.request_id AND aa.revoked_at IS NULL) AS granted_accounts",
   "FROM service_requests sr",
