@@ -8,10 +8,11 @@ Actualizado: 11 de noviembre de 2026. Rama de desarrollo: `architecture/daurel-v
 
 - [x] Estructura V2 base y laboratorio sintético de asuntos, partes y expedientes.
 - [x] Acceso opcional de cliente por código de correo y permisos explícitos por expediente, no por mera coincidencia de teléfono o correo.
+- [x] Revocación de accesos de **cliente** por expediente sintético desde el panel del propietario, separada de colaboradores: desactiva permisos, invalida invitaciones pendientes y registra auditoría. Solo en código de staging; **pendiente comprobación manual en navegador**. Pruebas end-to-end verifican que el cliente conserve únicamente otros expedientes concedidos y que lectores/gestores no puedan revocar.
 - [x] Centro de operaciones en navegador y celular con estados, actuaciones, historial, pendientes y semáforo.
 - [x] Cuentas administrativas separadas de las de clientes: activación de propietario y acceso por OTP; el usuario confirmó entrada, salida y reingreso.
 - [x] Bitácora de acciones confirmadas, visible exclusivamente para el propietario.
-- [x] Código para alta de colaboradores `reader` y `manager`, revocación de sesiones, OTP individual y autorización previa distinta de verificación. **107/107 pruebas GitHub Actions aprobadas en ejecución 43102749186.**
+- [x] Alta de colaboradores `reader` y `manager`, revocación de sesiones, OTP individual y autorización previa distinta de verificación. **110/110 pruebas GitHub Actions aprobadas en ejecución 43134216298** (11/11/2026).
 - [x] Auditoría estructural de V1 por consultas solo lectura: tabla `leads` con 29 columnas.
 - [x] Auditoría agregada de V1: **3 solicitudes, 3 folios distintos, 0 vacíos, 0 aceptaciones sin fecha**. Valores de estado `new`, `contacted`; urgencia `soon`, `48h`, `no`; prioridad `normal`.
 - [x] Conversor y ensayo de migración V1→V2 con **solo registros ficticios**, transacciones, detección de cambios e idempotencia.
