@@ -386,6 +386,7 @@ export function roleAllows(role,path,method){
  // La bitácora de acciones de terceros está reservada para propietario.
  if(path==="/v2/operator/api/audit")return role==="owner"&&method==="GET";
  if(path==="/v2/operator/api/routing")return role==="owner"&&method==="GET";
+ if(path==="/v2/operator/api/client-next-step")return role==="owner"&&["GET","POST"].includes(method);
  if(path==="/v2/operator/api/professionals/list")return role==="owner"&&method==="GET";
  if(path==="/v2/operator/api/professionals/save")return role==="owner"&&method==="POST";
  if(path==="/v2/operator/api/professionals/identity/list")return role==="owner"&&method==="GET";
