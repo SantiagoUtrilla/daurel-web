@@ -28,6 +28,7 @@ import { accountLinkPageResponse } from "./account-link-page.js";
 import {invitationPageResponse} from "./invitation-page.js";
 import {clientPortalPageResponse} from "./client-portal-page.js";
 import {createClientSelfRequest} from "./client-self-intake.js";
+import {clientCaseProgress} from "./client-progress-api.js";
 import {guestPageResponse} from "./guest-page.js";
 import {clientEmailPilotPage} from "./client-email-pilot-page.js";
 import {startClientEmailPilot,verifyClientEmailPilot} from "./client-email-pilot.js";
@@ -159,6 +160,7 @@ export default {
       "/v2/client/api/session":["GET",portalSession],
       "/v2/client/api/logout":["POST",portalLogout],
       "/v2/client/api/cases":["GET",portalMatters],
+      "/v2/client/api/progress":["GET",clientCaseProgress],
       "/v2/client/api/accept":["POST",portalAcceptInvitation],
       "/v2/client/api/create":["POST",createClientSelfRequest],
       "/v2/client/api/email/start":["POST",startClientEmailPilot],
