@@ -388,6 +388,8 @@ export function roleAllows(role,path,method){
  if(path==="/v2/operator/api/routing")return role==="owner"&&method==="GET";
  if(path==="/v2/operator/api/professionals/list")return role==="owner"&&method==="GET";
  if(path==="/v2/operator/api/professionals/save")return role==="owner"&&method==="POST";
+ if(path==="/v2/operator/api/professionals/identity/list")return role==="owner"&&method==="GET";
+ if(path==="/v2/operator/api/professionals/identity/save")return role==="owner"&&method==="POST";
  if(path.startsWith("/v2/operator/api/team/"))
   return role==="owner"&&(method==="GET"||method==="POST");
  if(path.startsWith("/v2/operator/api/assignments/"))
