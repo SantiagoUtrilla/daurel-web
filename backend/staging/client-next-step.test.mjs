@@ -163,6 +163,17 @@ test("Rechaza texto libre, HTML, fechas no confirmadas, expedientes ajenos y sta
  assert.equal((await ownerNextStepSave(save(FIRST,"review_request","closed"),f.env,f.owner)).status,409);
  assert.equal((await ownerNextStepSave(save(FIRST,"clear","closed"),f.env,f.owner)).status,200);
 });
+test("Cerrar o cancelar un asunto oculta un próximo paso que ya no corresponde",async()=>{
+ const f=await fixture();
+ assert.equal((await ownerNextStepSave(save(),f.env,f.owner)).status,201);
+ f.sqlite.prepare("UPDATE service_requests SET status='closed' WHERE request_id=?").run(FIRST);
+ const result=await (await worker.fetch(progress(FIRST,f.ownerCookie),f.env)).json();
+ assert.equal(result.status,"closed");
+ assert.equal(result.has_published_next_action,false);
+ assert.ok(result.next_step.includes("concluido"));
+ assert.ok(result.milestones.some(x=>x.label.includes("próximo paso")));
+});
+
 test("El panel contiene editor plegable y publicación explícita separada de la agenda interna",async()=>{
  const html=await operatorPageResponse().text();
  for(const phrase of ["Información de próximo paso visible al cliente",
