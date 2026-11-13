@@ -17,6 +17,7 @@ import {telegramConnectionStatus,testTelegramConnection,discoverTelegramChat} fr
 import {operatorActionCatalog,operatorRecordAction} from "./operator-actions.js";
 import {operatorQueue,operatorUpdateStatus,operatorSendInvitation} from "./operator-api.js";
 import {listProfessionalProfiles,saveProfessionalProfile} from "./operator-professionals.js";
+import {listProfessionalIdentities,saveProfessionalIdentity} from "./operator-professional-identity.js";
 import {operatorRoutingOverview} from "./operator-routing.js";
 import { adminPageResponse } from "./admin-page.js";
 import { dossierPageResponse } from "./dossier-page.js";
@@ -245,6 +246,8 @@ export default {
     const isOperatorRouting=request.method==="GET" && url.pathname==="/v2/operator/api/routing";
     const isProfessionalList=request.method==="GET" && url.pathname==="/v2/operator/api/professionals/list";
     const isProfessionalSave=request.method==="POST" && url.pathname==="/v2/operator/api/professionals/save";
+    const isProfessionalIdentityList=request.method==="GET" && url.pathname==="/v2/operator/api/professionals/identity/list";
+    const isProfessionalIdentitySave=request.method==="POST" && url.pathname==="/v2/operator/api/professionals/identity/save";
     const isOperatorStatus=request.method==="POST" && url.pathname==="/v2/operator/api/status";
     const isOperatorInvite=request.method==="POST" && url.pathname==="/v2/operator/api/invite";
     const isInviteIssue=request.method==="POST" && url.pathname==="/v2/demo/invitations/issue";
@@ -270,7 +273,7 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorRouting && !isProfessionalList && !isProfessionalSave && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover && !isOperatorCreate && !operatorHistoryMatch && !isOperatorAudit && !isOperatorTeamList && !isOperatorTeamAdd && !isOperatorTeamChange && !isAssignmentsList && !isAssignmentsChange && !isClientAccessRevoke) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorRouting && !isProfessionalList && !isProfessionalSave && !isProfessionalIdentityList && !isProfessionalIdentitySave && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover && !isOperatorCreate && !operatorHistoryMatch && !isOperatorAudit && !isOperatorTeamList && !isOperatorTeamAdd && !isOperatorTeamChange && !isAssignmentsList && !isAssignmentsChange && !isClientAccessRevoke) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -343,6 +346,8 @@ export default {
       if(isOperatorRouting)return await operatorRoutingOverview(env,operatorActor,request);
       if(isProfessionalList)return await listProfessionalProfiles(env,operatorActor);
       if(isProfessionalSave)return await saveProfessionalProfile(request,env,operatorActor);
+      if(isProfessionalIdentityList)return await listProfessionalIdentities(env,operatorActor);
+      if(isProfessionalIdentitySave)return await saveProfessionalIdentity(request,env,operatorActor);
       if(isOperatorCreate)return await operatorCreate(request,env);
       if(operatorHistoryMatch)return await operatorHistory(env,operatorHistoryMatch[1]);
       if(isOperatorStatus)return await operatorUpdateStatus(request,env);
