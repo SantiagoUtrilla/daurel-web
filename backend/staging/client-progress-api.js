@@ -3,6 +3,7 @@
 // tareas de trabajo internas, enlaces privados ni documentos del expediente.
 import {json} from "./demo-api.js";
 import {sessionRecord} from "./auth-pilot-api.js";
+import {currentClientNextStep} from "./client-next-step.js";
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATUS=Object.freeze({
@@ -43,6 +44,8 @@ function reply(body,status=200){
 }
 function eventLabel(row){
  if(row.event_type==="request_created")return "Solicitud registrada";
+ if(row.event_type==="client_next_step_published")return "DAUREL publicó información sobre el próximo paso";
+ if(row.event_type==="client_next_step_cleared")return "DAUREL actualizó la información de seguimiento";
  if(Object.hasOwn(SAFE_ACTIONS,row.event_type))return SAFE_ACTIONS[row.event_type];
  if(row.event_type==="status_changed"){
   // Un texto externo no puede inducir una etiqueta: formato exacto generado por el operador.
@@ -77,6 +80,7 @@ export async function clientCaseProgress(request,env,now=Date.now()){
   "SELECT event_type,summary,created_at,event_id FROM request_events",
   "WHERE request_id=? AND (event_type='request_created'",
   "OR event_type='status_changed'",
+  "OR event_type IN ('client_next_step_published','client_next_step_cleared')",
   "OR event_type IN (",
   "'operator_reply_received','operator_call_answered',",
   "'operator_appointment_scheduled','operator_consultation_completed',",
@@ -86,6 +90,7 @@ export async function clientCaseProgress(request,env,now=Date.now()){
   "'operator_case_referred','operator_service_completed'))",
   "ORDER BY created_at DESC,event_id DESC LIMIT 24",
  ].join(" ")).bind(id).all();
+ const published=await currentClientNextStep(env.DB,id);
  const events=(query.results||[]).map(row=>{
   const label=eventLabel(row);
   return label?{label,date:row.created_at}:null;
@@ -97,10 +102,11 @@ export async function clientCaseProgress(request,env,now=Date.now()){
   success:true,synthetic_only:true,request_id:id,
   public_folio:matter.public_folio,status:matter.status,
   status_label:STATUS[matter.status]||"En revisión",
-  next_step:WHAT_NEXT[matter.status]||"Comunícate con DAUREL para conocer el estado.",
+  next_step:published?.text||(WHAT_NEXT[matter.status]||"Comunícate con DAUREL para conocer el estado."),
+  published_next_action_at:published?.published_at||null,
   last_updated:matter.updated_at,
   milestones:timeline.slice(-25),
-  has_published_next_action:false,
+  has_published_next_action:!!published,
   notice:"Esta vista muestra únicamente hitos administrativos aptos para el cliente; no confirma comunicaciones externas ni establece una fecha de atención.",
  });
 }
