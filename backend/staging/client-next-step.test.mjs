@@ -27,6 +27,10 @@ async function fixture(){
   AUTH_OTP_HMAC_SECRET:"test-secret-long-enough-for-session-tests-123456",
   STAGING_CLIENT_EMAIL_PILOT_ENABLED:"true",
   STAGING_CLIENT_TEST_EMAILS:"sountibeats@gmail.com",
+  TURNSTILE_SITE_KEY:"staging-site-test-key",
+  TURNSTILE_SECRET_KEY:"staging-secret-test-key-long-enough",
+  RESEND_API_KEY:"re_test-long-enough-secret",
+  AUTH_EMAIL_FROM:"acceso@daurel.com.mx",
  };
  const cookies=[];
  for(const [id,email] of [[OWNER,"daurelcontact@gmail.com"],[OTHER,"sountibeats@gmail.com"]]){
