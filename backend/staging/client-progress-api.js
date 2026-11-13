@@ -90,7 +90,10 @@ export async function clientCaseProgress(request,env,now=Date.now()){
   "'operator_case_referred','operator_service_completed'))",
   "ORDER BY created_at DESC,event_id DESC LIMIT 24",
  ].join(" ")).bind(id).all();
- const published=await currentClientNextStep(env.DB,id);
+ // Un paso anterior no debe seguir presentándose como pendiente si el asunto
+ // ya está cerrado o cancelado; conservamos el evento en el historial.
+ const published=["closed","cancelled"].includes(matter.status)
+  ?null:await currentClientNextStep(env.DB,id);
  const events=(query.results||[]).map(row=>{
   const label=eventLabel(row);
   return label?{label,date:row.created_at}:null;
