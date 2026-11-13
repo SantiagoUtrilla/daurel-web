@@ -86,6 +86,8 @@ export async function saveProfessionalIdentity(request,env,actor){
     data.account_id===actor.account_id||
     typeof data.full_name!=="string")
   return reply({success:false,message:"Identificador o nombre inválido."},400);
+ if(/[\r\n\t]/.test(data.full_name))
+  return reply({success:false,message:"El nombre debe escribirse en una sola línea."},400);
  const fullName=data.full_name.trim().replace(/\s+/g," ");
  if(!NAME.test(fullName)||/ {2,}/.test(fullName))
   return reply({success:false,message:"Escribe un nombre ficticio de 3 a 120 caracteres, sin números ni símbolos especiales."},400);
