@@ -4,7 +4,7 @@
 // Owner-only (además de la autorización central del Worker).
 import {json} from "./demo-api.js";
 
-const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const IDEM=/^[a-zA-Z0-9._-]{8,100}$/;
 export const PUBLIC_NEXT_STEPS=Object.freeze({
  review_request:"DAUREL revisará la información de tu solicitud para determinar el siguiente paso.",
