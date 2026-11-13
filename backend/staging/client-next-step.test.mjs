@@ -99,7 +99,7 @@ test("Propietario publica paso predefinido, el cliente lo ve y ningún otro clie
  const second=await (await worker.fetch(progress(SECOND,f.otherCookie),f.env)).json();
  assert.equal(second.has_published_next_action,false);
  assert.ok(!JSON.stringify(second).includes(PUBLIC_NEXT_STEPS.review_request));
- assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS n FROM operator_case_assignments").get().n,0);
+ assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS n FROM account_request_access").get().n,2);
 });
 test("Publicar, repetir, cambiar y retirar el mensaje deja trazabilidad y vuelve al texto general",async()=>{
  const f=await fixture(),key="unique-idempotency-key-1";
