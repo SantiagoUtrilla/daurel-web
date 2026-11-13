@@ -29,6 +29,7 @@ import {invitationPageResponse} from "./invitation-page.js";
 import {clientPortalPageResponse} from "./client-portal-page.js";
 import {createClientSelfRequest} from "./client-self-intake.js";
 import {clientCaseProgress} from "./client-progress-api.js";
+import {ownerNextStepView,ownerNextStepSave} from "./client-next-step.js";
 import {guestPageResponse} from "./guest-page.js";
 import {clientEmailPilotPage} from "./client-email-pilot-page.js";
 import {startClientEmailPilot,verifyClientEmailPilot} from "./client-email-pilot.js";
@@ -246,6 +247,8 @@ export default {
     const isOperatorAudit=request.method==="GET" && url.pathname==="/v2/operator/api/audit";
     const isOperatorQueue=request.method==="GET" && url.pathname==="/v2/operator/api/queue";
     const isOperatorRouting=request.method==="GET" && url.pathname==="/v2/operator/api/routing";
+    const isNextStepView=request.method==="GET" && url.pathname==="/v2/operator/api/client-next-step";
+    const isNextStepSave=request.method==="POST" && url.pathname==="/v2/operator/api/client-next-step";
     const isProfessionalList=request.method==="GET" && url.pathname==="/v2/operator/api/professionals/list";
     const isProfessionalSave=request.method==="POST" && url.pathname==="/v2/operator/api/professionals/save";
     const isProfessionalIdentityList=request.method==="GET" && url.pathname==="/v2/operator/api/professionals/identity/list";
@@ -275,7 +278,7 @@ export default {
       ? /^\/v2\/demo\/clients\/([^/]+)$/.exec(url.pathname)
       : null;
 
-    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorRouting && !isProfessionalList && !isProfessionalSave && !isProfessionalIdentityList && !isProfessionalIdentitySave && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover && !isOperatorCreate && !operatorHistoryMatch && !isOperatorAudit && !isOperatorTeamList && !isOperatorTeamAdd && !isOperatorTeamChange && !isAssignmentsList && !isAssignmentsChange && !isClientAccessRevoke) {
+    if (!isDemoCreate && !clientMatch && !isAdminOverview && !dossierMatch && !actionMatch && !isMailTest && !isPilotStart && !isPilotVerify && !isPilotSession && !isPilotLogout && !isAccountView && !isAccountLink && !isAccountUnlink && !isInviteIssue && !isInviteRedeem && !isInviteView && !isOperatorQueue && !isOperatorRouting && !isNextStepView && !isNextStepSave && !isProfessionalList && !isProfessionalSave && !isProfessionalIdentityList && !isProfessionalIdentitySave && !isOperatorStatus && !isOperatorInvite && !isOperatorActions && !isOperatorRecord && !isFollowupList && !isFollowupCreate && !isFollowupComplete && !isFollowupCancel && !isAlertPreview && !isTelegramStatus && !isTelegramTest && !isTelegramDiscover && !isOperatorCreate && !operatorHistoryMatch && !isOperatorAudit && !isOperatorTeamList && !isOperatorTeamAdd && !isOperatorTeamChange && !isAssignmentsList && !isAssignmentsChange && !isClientAccessRevoke) {
       return json({ success: false, message: "Ruta no disponible en staging." }, 404);
     }
 
@@ -346,6 +349,8 @@ export default {
       if(isOperatorAudit)return await operatorAuditLog(env,operatorActor,request);
       if(isOperatorQueue)return await operatorQueue(env,operatorActor);
       if(isOperatorRouting)return await operatorRoutingOverview(env,operatorActor,request);
+      if(isNextStepView)return await ownerNextStepView(request,env,operatorActor);
+      if(isNextStepSave)return await ownerNextStepSave(request,env,operatorActor);
       if(isProfessionalList)return await listProfessionalProfiles(env,operatorActor);
       if(isProfessionalSave)return await saveProfessionalProfile(request,env,operatorActor);
       if(isProfessionalIdentityList)return await listProfessionalIdentities(env,operatorActor);
